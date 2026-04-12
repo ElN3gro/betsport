@@ -554,6 +554,48 @@ def add_field_player(eid):
             (eid, entry_paid, "cancha", f"Cuota cancha: {name} ({team_key})", now()))
     flash(f"Jugador '{name}' agregado.", "success"); return redirect(url_for("admin_panel"))
 
+
+@app.route("/admin/event/<int:eid>/field_players/bulk", methods=["POST"])
+@login_required
+@admin_required
+def add_field_players_bulk(eid):
+    team_key = request.form.get("team_key", "")
+    if team_key not in ("home", "away"):
+        flash("Equipo invalido.", "error"); return redirect(url_for("admin_panel"))
+    try:
+        count = int(request.form.get("count", 0))
+    except:
+        flash("Cantidad invalida.", "error"); return redirect(url_for("admin_panel"))
+    if count < 1 or count > 30:
+        flash("Entre 1 y 30 jugadores.", "error"); return redirect(url_for("admin_panel"))
+
+    added = 0
+    total_added = 0.0
+    with get_db() as db:
+        ev = db.execute("SELECT * FROM events WHERE id=?", (eid,)).fetchone()
+        if not ev:
+            flash("Evento no encontrado.", "error"); return redirect(url_for("admin_panel"))
+        for i in range(1, count + 1):
+            name = request.form.get(f"name_{i}", "").strip()
+            try:
+                fee = float(request.form.get(f"fee_{i}", 0))
+            except:
+                fee = 0.0
+            if not name:
+                continue
+            db.execute("INSERT INTO field_players (event_id,name,team_key,entry_paid,payout,created_at) VALUES (?,?,?,?,0,?)",
+                (eid, name, team_key, fee, now()))
+            total_added += fee
+            added += 1
+        if total_added > 0:
+            db.execute("UPDATE events SET house_budget=house_budget+? WHERE id=?", (total_added, eid))
+            db.execute("INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
+                (eid, total_added, "cancha",
+                 f"{added} jugadores {team_key} agregados en bloque — total ${total_added:,.0f}", now()))
+
+    flash(f"{added} jugadores agregados. Total cuotas: ${total_added:,.0f}.", "success")
+    return redirect(url_for("admin_panel"))
+
 @app.route("/admin/field_player/<int:fpid>/delete", methods=["POST"])
 @login_required
 @admin_required
