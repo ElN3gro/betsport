@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+{% block title %}Términos y Condiciones — BetSport{% endblock %}
+{% block content %}
+
+<div style="max-width:780px;margin:0 auto">
+
+  <!-- Header -->
+  <div style="margin-bottom:32px;padding-bottom:24px;border-bottom:1px solid var(--border)">
+    <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.12em;margin-bottom:10px">Documento legal</div>
+    <div style="font-size:28px;font-weight:700;line-height:1.2;margin-bottom:10px">
+      Términos y <span style="color:var(--blue)">Condiciones</span>
+    </div>
+    <div style="display:flex;gap:20px;font-size:12px;color:var(--text3)">
+      <span>📅 Última actualización: {{ now_date }}</span>
+      <span>🏷️ BetSport — Plataforma privada</span>
+    </div>
+    <div style="margin-top:16px;padding:12px 16px;background:var(--red-bg);border:1px solid rgba(239,68,68,.25);border-radius:var(--r);font-size:13px;color:#f87171">
+      ⚠️ <strong>Importante:</strong> Al registrarte y utilizar esta plataforma, aceptas en su totalidad los presentes términos. Si no estás de acuerdo con alguno de ellos, no debes utilizar el servicio.
+    </div>
+  </div>
+
+  <!-- Índice -->
+  <div class="card" style="margin-bottom:28px">
+    <div class="card-title">📋 Índice</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px">
+      <a href="#naturaleza" style="color:var(--text2);padding:4px 0;display:block">1. Naturaleza del servicio</a>
+      <a href="#acceso" style="color:var(--text2);padding:4px 0;display:block">2. Acceso y registro</a>
+      <a href="#entradas" style="color:var(--text2);padding:4px 0;display:block">3. Cuotas de entrada</a>
+      <a href="#apuestas" style="color:var(--text2);padding:4px 0;display:block">4. Funcionamiento de apuestas</a>
+      <a href="#multiplicadores" style="color:var(--text2);padding:4px 0;display:block">5. Multiplicadores y odds</a>
+      <a href="#pagos" style="color:var(--text2);padding:4px 0;display:block">6. Pagos y cobros</a>
+      <a href="#presupuesto" style="color:var(--text2);padding:4px 0;display:block">7. Presupuesto de la casa</a>
+      <a href="#resultados" style="color:var(--text2);padding:4px 0;display:block">8. Declaración de resultados</a>
+      <a href="#fallos" style="color:var(--text2);padding:4px 0;display:block">9. Fallos técnicos</a>
+      <a href="#responsabilidad" style="color:var(--text2);padding:4px 0;display:block">10. Límite de responsabilidad</a>
+      <a href="#conducta" style="color:var(--text2);padding:4px 0;display:block">11. Conducta del usuario</a>
+      <a href="#modificaciones" style="color:var(--text2);padding:4px 0;display:block">12. Modificaciones</a>
+    </div>
+  </div>
+
+  <!-- Secciones -->
+
+  <div id="naturaleza" class="card" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="width:28px;height:28px;background:var(--blue-bg);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--blue-l);flex-shrink:0">1</div>
+      <div class="card-title" style="margin:0">Naturaleza del servicio</div>
+    </div>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+      BetSport es una <strong style="color:var(--text)">plataforma privada de apuestas deportivas</strong> de uso exclusivo entre personas conocidas y acordadas previamente. No es una casa de apuestas comercial ni está habilitada para el público general.
+    </p>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+      El acceso está restringido mediante <strong style="color:var(--text)">tokens de invitación</strong> entregados directamente por el administrador. Toda persona que participa lo hace de manera voluntaria, conociendo y aceptando el carácter privado e informal del sistema.
+    </p>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7">
+      Esta plataforma <strong style="color:var(--text)">no garantiza ganancias</strong>. Las apuestas deportivas conllevan riesgo de pérdida total del dinero apostado. Participar implica asumir dicho riesgo de forma consciente e irrevocable.
+    </p>
+  </div>
+
+  <div id="acceso" class="card" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="width:28px;height:28px;background:var(--blue-bg);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--blue-l);flex-shrink:0">2</div>
+      <div class="card-title" style="margin:0">Acceso y registro</div>
+    </div>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+      Para registrarse se requiere un <strong style="color:var(--text)">token de acceso único</strong> entregado por el administrador. Cada token es de uso personal e intransferible. Compartir un token con terceros es responsabilidad exclusiva de quien lo recibió originalmente.
+    </p>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+      El usuario es <strong style="color:var(--text)">el único responsable</strong> de mantener la confidencialidad de sus credenciales (usuario y contraseña). Cualquier acción realizada con una cuenta se atribuye al titular de esa cuenta.
+    </p>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7">
+      El administrador se reserva el derecho de <strong style="color:var(--text)">revocar el acceso</strong> a cualquier usuario en cualquier momento, sin necesidad de justificación previa, especialmente ante comportamientos que se consideren contrarios al espíritu del grupo.
+    </p>
+  </div>
+
+  <div id="entradas" class="card" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="width:28px;height:28px;background:var(--amber-bg);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--amber);flex-shrink:0">3</div>
+      <div class="card-title" style="margin:0">Cuotas de entrada</div>
+    </div>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+      Algunos eventos pueden requerir el pago de una <strong style="color:var(--text)">cuota de entrada</strong> para poder apostar. Esta cuota se informa claramente en el panel del evento antes de solicitarla.
+    </p>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+      El pago de la cuota de entrada se realiza <strong style="color:var(--text)">en efectivo directamente al administrador</strong>. La entrada solo se confirma una vez que el administrador valida el pago manualmente en el sistema. El registro de la solicitud en la plataforma <strong style="color:var(--text)">no constituye confirmación de pago</strong>.
+    </p>
+    <div style="padding:12px 14px;background:var(--amber-bg);border:1px solid rgba(245,158,11,.2);border-radius:var(--r);font-size:12px;color:var(--amber)">
+      🎫 <strong>Las cuotas de entrada no son reembolsables</strong> una vez confirmadas por el administrador, independientemente de si el usuario realiza apuestas o no, y del resultado del evento.
+    </div>
+  </div>
+
+  <div id="apuestas" class="card" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="width:28px;height:28px;background:var(--blue-bg);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--blue-l);flex-shrink:0">4</div>
+      <div class="card-title" style="margin:0">Funcionamiento de apuestas</div>
+    </div>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+      Las apuestas funcionan mediante un flujo de <strong style="color:var(--text)">solicitud y aprobación</strong>: el apostador envía una solicitud indicando la opción y el monto, y el administrador la aprueba o rechaza manualmente.
+    </p>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+      Una solicitud de apuesta <strong style="color:var(--text)">no garantiza su aprobación</strong>. El sistema puede rechazar automáticamente solicitudes que superen la capacidad de pago disponible (presupuesto de la casa más el pool del lado contrario). El administrador también puede rechazar solicitudes a su discreción.
+    </p>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+      El pago de las apuestas aprobadas se realiza <strong style="color:var(--text)">en efectivo al administrador</strong>. El registro en el sistema confirma la apuesta, pero el desembolso físico del dinero es responsabilidad del apostador.
+    </p>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7">
+      Las apuestas <strong style="color:var(--text)">no pueden cancelarse</strong> una vez aprobadas por el administrador, salvo que el evento sea anulado por causas externas a decisión del administrador.
+    </p>
+  </div>
+
+  <div id="multiplicadores" class="card" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="width:28px;height:28px;background:var(--green-bg);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--green);flex-shrink:0">5</div>
+      <div class="card-title" style="margin:0">Multiplicadores y odds</div>
+    </div>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+      Los multiplicadores (odds) que se muestran en pantalla son <strong style="color:var(--text)">dinámicos y cambian en tiempo real</strong>. Cada apuesta aprobada ajusta automáticamente los odds de todas las opciones del evento, siguiendo la lógica del mercado.
+    </p>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+      El multiplicador que ve el usuario al enviar su solicitud <strong style="color:var(--text)">puede diferir del multiplicador al momento de la aprobación</strong>, ya que entre ambos momentos pueden haberse aprobado otras apuestas que modificaron los odds. El sistema registra el multiplicador vigente al momento de la aprobación, que es el que se aplica definitivamente.
+    </p>
+    <div style="padding:12px 14px;background:var(--green-bg);border:1px solid rgba(34,197,94,.2);border-radius:var(--r);font-size:12px;color:var(--green);margin-bottom:10px">
+      📊 <strong>El multiplicador mostrado al solicitar es referencial.</strong> El multiplicador definitivo es el que aparece en la apuesta confirmada, y es sobre ese valor que se calcula la ganancia potencial.
+    </div>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+      Los odds también dependen de factores como el <strong style="color:var(--text)">balance entre pools</strong> (cuánto se ha apostado a cada opción), el presupuesto disponible de la casa y ajustes manuales realizados por el administrador.
+    </p>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7">
+      Una opción puede quedar <strong style="color:var(--text)">bloqueada</strong> (odd ≤ 1.01x) si el sistema determina que no hay capacidad suficiente para cubrir más ganancias en ese lado. En ese caso, no se aceptarán nuevas solicitudes para esa opción.
+    </p>
+  </div>
+
+  <div id="pagos" class="card" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="width:28px;height:28px;background:var(--amber-bg);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--amber);flex-shrink:0">6</div>
+      <div class="card-title" style="margin:0">Pagos y cobros</div>
+    </div>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+      Todos los pagos y cobros se realizan <strong style="color:var(--text)">en efectivo y de forma presencial</strong>. La plataforma actúa únicamente como registro y organizador; no procesa pagos electrónicos ni opera como intermediario financiero.
+    </p>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+      Los montos que aparecen en el sistema (saldos, ganancias potenciales, cobros) son <strong style="color:var(--text)">registros informativos</strong>. El desembolso real de dinero depende del acuerdo entre el apostador y el administrador.
+    </p>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+      En caso de discrepancia entre lo registrado en el sistema y lo acordado verbalmente o en efectivo, el administrador tiene la <strong style="color:var(--text)">autoridad final</strong> para resolver el diferendo. La plataforma no arbitra disputas de pago.
+    </p>
+    <div style="padding:12px 14px;background:var(--red-bg);border:1px solid rgba(239,68,68,.2);border-radius:var(--r);font-size:12px;color:#f87171">
+      💸 <strong>La plataforma no se hace responsable</strong> por pagos no realizados, pagos en exceso, pérdidas de dinero en efectivo, o cualquier disputa financiera entre participantes.
+    </div>
+  </div>
+
+  <div id="presupuesto" class="card" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="width:28px;height:28px;background:var(--blue-bg);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--blue-l);flex-shrink:0">7</div>
+      <div class="card-title" style="margin:0">Presupuesto de la casa</div>
+    </div>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+      Cada evento puede tener un <strong style="color:var(--text)">presupuesto de la casa</strong>, que es el fondo que garantiza la capacidad de pago a los ganadores. Este presupuesto se conforma con las cuotas de entrada de los apostadores y/o aportes manuales del administrador.
+    </p>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+      El sistema valida que, en cualquier escenario posible de resultado, el presupuesto disponible sea suficiente para cubrir las ganancias comprometidas. Si una apuesta nueva generaría un déficit en el peor caso, <strong style="color:var(--text)">el sistema la rechazará automáticamente</strong>.
+    </p>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7">
+      El presupuesto visible es <strong style="color:var(--text)">un estimado</strong> y puede variar a medida que se aprueban o rechazan apuestas. El administrador puede ajustarlo manualmente en cualquier momento antes de que el evento finalice.
+    </p>
+  </div>
+
+  <div id="resultados" class="card" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="width:28px;height:28px;background:var(--green-bg);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--green);flex-shrink:0">8</div>
+      <div class="card-title" style="margin:0">Declaración de resultados</div>
+    </div>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+      Los resultados de los eventos son <strong style="color:var(--text)">declarados manualmente por el administrador</strong> una vez concluido el partido o competencia. El sistema ejecuta los pagos de forma automática al momento de la declaración.
+    </p>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+      El administrador declara el resultado basándose en información pública y verificable del evento deportivo. Sin embargo, <strong style="color:var(--text)">en caso de error humano al declarar el resultado</strong>, el sistema ejecutará los pagos según lo ingresado. La corrección de errores de declaración queda a criterio del administrador y no está garantizada.
+    </p>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7">
+      Una vez declarado el resultado y ejecutados los pagos, la acción es <strong style="color:var(--text)">irreversible en el sistema</strong>. Cualquier ajuste posterior se realizará manualmente y a criterio exclusivo del administrador.
+    </p>
+  </div>
+
+  <div id="fallos" class="card" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="width:28px;height:28px;background:var(--red-bg);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--red);flex-shrink:0">9</div>
+      <div class="card-title" style="margin:0">Fallos técnicos y errores del sistema</div>
+    </div>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+      BetSport es un sistema informático y como tal puede experimentar <strong style="color:var(--text)">fallas, interrupciones, errores de cálculo, pérdida de datos o comportamientos inesperados</strong>. Ningún sistema de software está exento de errores.
+    </p>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+      Entre los fallos posibles, sin carácter limitativo, se incluyen: caída del servidor, errores en el cálculo de odds o ganancias, pérdida de solicitudes de apuesta, fallos en la actualización de saldos, errores en la declaración automática de pagos, y pérdida de historial de transacciones.
+    </p>
+    <div style="padding:12px 14px;background:var(--red-bg);border:1px solid rgba(239,68,68,.2);border-radius:var(--r);font-size:12px;color:#f87171;margin-bottom:10px">
+      🛠️ <strong>La plataforma no garantiza disponibilidad continua</strong> ni la exactitud absoluta de los cálculos en todo momento. El uso del sistema se realiza bajo el propio riesgo del usuario.
+    </div>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7">
+      Ante cualquier discrepancia o fallo detectado, el usuario debe <strong style="color:var(--text)">notificar al administrador directamente</strong>. La resolución de incidencias técnicas queda a criterio del administrador y no genera derecho a compensación automática.
+    </p>
+  </div>
+
+  <div id="responsabilidad" class="card" style="margin-bottom:16px;border-color:rgba(239,68,68,.25)">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="width:28px;height:28px;background:var(--red-bg);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--red);flex-shrink:0">10</div>
+      <div class="card-title" style="margin:0">Límite de responsabilidad</div>
+    </div>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+      El administrador y la plataforma BetSport <strong style="color:var(--text)">no se hacen responsables</strong> bajo ninguna circunstancia por:
+    </p>
+    <div style="display:grid;gap:8px;margin-bottom:14px">
+      {% for item in [
+        ('💸', 'Pérdidas de dinero producto de apuestas, independientemente de la causa.'),
+        ('📉', 'Pérdidas derivadas de cambios en los multiplicadores entre la solicitud y la aprobación.'),
+        ('🔒', 'Apuestas rechazadas por insuficiencia de presupuesto o pool contrario.'),
+        ('⚙️', 'Errores técnicos, caídas del sistema, pérdida de datos o cálculos incorrectos.'),
+        ('🧾', 'Discrepancias entre el registro del sistema y el dinero en efectivo manejado.'),
+        ('📡', 'Falta de acceso a la plataforma por problemas de conectividad o del servidor.'),
+        ('🏁', 'Resultados deportivos adversos o controversiales del evento apostado.'),
+        ('🚫', 'Suspensión o cancelación de eventos deportivos por causas externas.')
+      ] %}
+      <div style="display:flex;gap:10px;align-items:flex-start;padding:8px 12px;background:var(--bg3);border-radius:8px;font-size:12px;color:var(--text2)">
+        <span style="flex-shrink:0">{{ item[0] }}</span>
+        <span>{{ item[1] }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7">
+      La participación en BetSport implica la <strong style="color:var(--text)">aceptación plena y consciente</strong> de todos los riesgos mencionados. No existe mecanismo de reclamación formal dentro de la plataforma.
+    </p>
+  </div>
+
+  <div id="conducta" class="card" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="width:28px;height:28px;background:var(--blue-bg);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--blue-l);flex-shrink:0">11</div>
+      <div class="card-title" style="margin:0">Conducta del usuario</div>
+    </div>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+      El usuario se compromete a utilizar la plataforma de <strong style="color:var(--text)">buena fe</strong>, sin intentar manipular el sistema, explotar errores técnicos en beneficio propio ni actuar en detrimento de otros participantes.
+    </p>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7">
+      Cualquier comportamiento que el administrador considere deshonesto, fraudulento o contrario al espíritu del grupo puede resultar en la <strong style="color:var(--text)">suspensión inmediata del acceso</strong>, sin reembolso de cuotas pagadas ni compensación de saldos pendientes.
+    </p>
+  </div>
+
+  <div id="modificaciones" class="card" style="margin-bottom:32px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="width:28px;height:28px;background:var(--blue-bg);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--blue-l);flex-shrink:0">12</div>
+      <div class="card-title" style="margin:0">Modificaciones a los términos</div>
+    </div>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+      El administrador se reserva el derecho de <strong style="color:var(--text)">modificar estos términos en cualquier momento</strong>. Los cambios entrarán en vigor desde su publicación en la plataforma.
+    </p>
+    <p style="font-size:13px;color:var(--text2);line-height:1.7">
+      El uso continuado de la plataforma tras la publicación de cambios se considera <strong style="color:var(--text)">aceptación tácita</strong> de los nuevos términos. Se recomienda revisar este documento periódicamente.
+    </p>
+  </div>
+
+  <!-- Footer del documento -->
+  <div style="text-align:center;padding:20px;border-top:1px solid var(--border);color:var(--text3);font-size:12px">
+    <div style="margin-bottom:6px">BetSport — Plataforma privada de apuestas deportivas</div>
+    <div>Al usar este servicio aceptas todos los términos descritos en este documento.</div>
+  </div>
+
+</div>
+{% endblock %}

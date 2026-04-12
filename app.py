@@ -174,8 +174,12 @@ def recalc_auto_odds(db, eid):
 
 # ── AUTH ──────────────────────────────────────────────────────────────────────
 
-@app.route("/")
-def index():
+@app.route("/terms")
+def terms():
+    from datetime import date
+    return render_template("terms.html", now_date=date.today().strftime("%d/%m/%Y"))
+
+@app.route("/")def index():
     return redirect(url_for("dashboard") if "user_id" in session else url_for("login"))
 
 @app.route("/login", methods=["GET", "POST"])

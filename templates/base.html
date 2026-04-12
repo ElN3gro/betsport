@@ -123,6 +123,7 @@ tr:last-child td{border-bottom:none}
     {% endif %}
     <span style="color:var(--text3);font-size:12px;padding:0 4px">{{ session.username }}</span>
     <a href="{{ url_for('logout') }}" class="btn-logout">Salir</a>
+    <a href="{{ url_for('terms') }}" style="color:var(--text3);font-size:11px;padding:6px 8px;border-radius:6px" title="Términos y Condiciones">T&amp;C</a>
   </div>
 </nav>
 {% endif %}
@@ -140,5 +141,11 @@ tr:last-child td{border-bottom:none}
 
 {% block content %}{% endblock %}
 </div>
+
+<div style="text-align:center;padding:20px 16px 28px;font-size:11px;color:var(--text3);border-top:1px solid var(--border);margin-top:40px">
+  BetSport — Plataforma privada &nbsp;·&nbsp;
+  <a href="{{ url_for('terms') }}" style="color:var(--text3);text-decoration:underline">Términos y Condiciones</a>
+</div>
+
 </body>
 </html>
