@@ -565,10 +565,8 @@ def approve_bet_request(brid):
         ganancia_neta = round(potential - amount, 2)
 
         # ── Acreditar el monto apostado al saldo del jugador ──────────
-        # El saldo refleja el efectivo físico que el jugador tiene en juego.
-        # Al aprobar, sumamos el monto (el jugador "tiene" ese dinero).
-        # Al finalizar: si pierde, se descuenta; si gana, solo se suma la ganancia.
-        db.execute("UPDATE users SET balance=balance+? WHERE id=?", (amount, br["user_id"]))
+        # El saldo es solo informativo (efectivo físico del jugador).
+        # No se modifica al aprobar apuestas.
 
         # Registrar apuesta confirmada
         db.execute("""INSERT INTO bets (user_id,event_id,option_key,option_label,amount,odd_at_bet,potential,result,payout,created_at)
@@ -680,17 +678,16 @@ def finish_event(eid):
             db.execute("INSERT INTO house_log (event_id,amount,note,created_at) VALUES (?,?,?,?)",
                 (eid, house_share_bets, f"Casa {int(HOUSE_CUT*100)}% del pool perdedor", now()))
 
-        # Ganadores: ya tienen el monto en saldo — solo sumar la ganancia neta proporcional
+        # Ganadores: sumar la ganancia neta proporcional al saldo (informativo)
         for b in winning_bets:
-            share   = (b["amount"] / win_pool_sum) if win_pool_sum > 0 else 0
+            share    = (b["amount"] / win_pool_sum) if win_pool_sum > 0 else 0
             ganancia = round(prize_apostadores * share, 2)
-            payout  = round(b["amount"] + ganancia, 2)  # total que "tiene" (para el historial)
+            payout   = round(b["amount"] + ganancia, 2)  # guardado en historial
             db.execute("UPDATE bets SET result='won', payout=? WHERE id=?", (payout, b["id"]))
             db.execute("UPDATE users SET balance=balance+? WHERE id=?", (ganancia, b["user_id"]))
-        # Perdedores: descontar su monto del saldo
+        # Perdedores: solo marcar como perdido, el saldo NO cambia
         for b in losing_bets:
             db.execute("UPDATE bets SET result='lost' WHERE id=?", (b["id"],))
-            db.execute("UPDATE users SET balance=balance-? WHERE id=?", (b["amount"], b["user_id"]))
 
         # ════════════════════════════════════════════════════════════════
         # POOL CANCHA — completamente separado de las apuestas
