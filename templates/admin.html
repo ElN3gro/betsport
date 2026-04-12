@@ -176,6 +176,14 @@
         <input type="number" name="field_cut_pct" min="0" max="50" step="0.1" placeholder="7" value="7">
         <div style="font-size:10px;color:var(--text3);margin-top:3px">% del pool de apuestas perdedoras</div>
       </div>
+      <div class="form-group">
+        <label>Modo de multiplicadores</label>
+        <select name="odds_mode">
+          <option value="manual">Manual (fijos, ajuste suave al aprobar)</option>
+          <option value="auto">Automático (se equilibran solos según apuestas)</option>
+        </select>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">Auto garantiza que la casa nunca pierda</div>
+      </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:4px">
       <div class="form-group">
@@ -253,6 +261,7 @@ function toggleOdds(sport) {
       <div style="font-size:11px;color:var(--text3);margin-bottom:3px">
         {{ '⚽' if ev['sport']=='futbol' else '🏀' }} {{ ev['league'] }}
         — {{ ed.count }} apostadores — % cancha: {{ "%.0f"|format(ev['field_cut_pct']*100) }}%
+        — odds: {{ ev['odds_mode'] }}
       </div>
       <div style="font-size:17px;font-weight:600">{{ ev['home'] }} vs {{ ev['away'] }}</div>
     </div>
@@ -364,6 +373,16 @@ function toggleOdds(sport) {
             <input type="number" name="field_cut_pct" step="0.1" min="0" max="50" placeholder="{{ "%.0f"|format(ev['field_cut_pct']*100) }}">
           </div>
         </div>
+        <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:8px">
+          <div>
+            <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px">Modo odds</label>
+            <select name="odds_mode" style="width:auto">
+              <option value="" >— sin cambio —</option>
+              <option value="manual" {% if ev['odds_mode']=='manual' %}selected{% endif %}>Manual</option>
+              <option value="auto" {% if ev['odds_mode']=='auto' %}selected{% endif %}>Automático</option>
+            </select>
+          </div>
+        </div>
         <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Deja vacío lo que no quieras modificar.</div>
         <button type="submit" class="btn btn-sm btn-primary">Aplicar cambios</button>
       </form>
@@ -419,6 +438,18 @@ function toggleOdds(sport) {
     </div>
     {% endfor %}
   </div>
+
+  <!-- Aprobar todas las apuestas pendientes de este evento -->
+  {% if ev['status'] != 'finished' and ed.pending_bets_count > 0 %}
+  <div style="margin-bottom:10px">
+    <form method="POST" action="{{ url_for('approve_all_bets', eid=ev['id']) }}"
+      onsubmit="return confirm('¿Aprobar las {{ ed.pending_bets_count }} solicitudes pendientes de este evento?')">
+      <button type="submit" class="btn btn-success btn-sm">
+        ✓ Aprobar todas las apuestas pendientes ({{ ed.pending_bets_count }})
+      </button>
+    </form>
+  </div>
+  {% endif %}
 
   <!-- Declarar ganador -->
   {% if ev['status'] != 'finished' %}
