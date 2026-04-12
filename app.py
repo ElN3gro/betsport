@@ -635,9 +635,10 @@ def approve_bet_request(brid):
         # Sumar al pool del evento
         db.execute("UPDATE events SET pool=pool+? WHERE id=?", (amount, br["event_id"]))
 
-        # Auto-ajuste de odds
+        # Auto-ajuste de odds (usa el odd actual del mercado, no el bloqueado)
+        current_market_odd = odd_row["odd"]
         factor  = amount / 1000.0
-        new_odd = max(MIN_ODD, round(old_odd - (old_odd - 1.0) * factor * 0.18, 2))
+        new_odd = max(MIN_ODD, round(current_market_odd - (current_market_odd - 1.0) * factor * 0.18, 2))
         db.execute("UPDATE event_odds SET odd=? WHERE id=?", (new_odd, odd_row["id"]))
         for o in db.execute("SELECT * FROM event_odds WHERE event_id=? AND option_key!=?",
             (br["event_id"], br["option_key"])).fetchall():
