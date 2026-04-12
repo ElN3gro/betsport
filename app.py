@@ -314,8 +314,9 @@ def cancel_bet_request(brid):
         if ev["status"] != "open":
             flash("No puedes retirar una apuesta con las apuestas cerradas.","error")
             return redirect(url_for("dashboard"))
+        # Solicitud aún pendiente → balance NO fue descontado → no hay nada que devolver
         db.execute("UPDATE bet_requests SET status='cancelled' WHERE id=?", (brid,))
-    flash("Solicitud de apuesta retirada.","success")
+    flash("Solicitud de apuesta cancelada.","success")
     return redirect(url_for("dashboard"))
 
 # ── ADMIN PANEL ────────────────────────────────────────────────────────────────
@@ -566,21 +567,20 @@ def approve_bet_request(brid):
         potential = round(amount * old_odd, 2)
         ganancia_neta = round(potential - amount, 2)
 
-        # ── Verificar saldo suficiente ────────────────────────────────────
+        # ── Verificar que el jugador tiene saldo suficiente ────────────
+        # El saldo representa el efectivo físico disponible del jugador.
+        # Se descuenta aquí para reservarlo; si cancela, se devuelve.
         jugador = db.execute("SELECT balance FROM users WHERE id=?", (br["user_id"],)).fetchone()
         if jugador["balance"] < amount:
             flash(
-                f"Apuesta rechazada: {br['full_name'] if 'full_name' in br.keys() else 'el jugador'} "
-                f"no tiene saldo suficiente (saldo: ${jugador['balance']:,.0f}, apuesta: ${amount:,.0f}).",
+                f"Apuesta rechazada: el jugador no tiene saldo suficiente "
+                f"(saldo: ${jugador['balance']:,.0f}, apuesta: ${amount:,.0f}).",
                 "error"
             )
             db.execute("UPDATE bet_requests SET status='rejected' WHERE id=?", (brid,))
             return redirect(url_for("admin_panel"))
 
-        # ── Descontar el monto apostado del balance del jugador ──────────
-        # Con este modelo el balance ya se descontó al aprobar, por lo que
-        # la casa siempre retiene losing_pool * (HOUSE_CUT + field_cut_pct)
-        # al finalizar — nunca hay déficit posible.
+        # Descontar el monto del balance (reserva el efectivo físico)
         db.execute("UPDATE users SET balance=balance-? WHERE id=?", (amount, br["user_id"]))
 
         # Registrar apuesta confirmada
@@ -672,48 +672,31 @@ def finish_event(eid):
         losing_pool  = sum(b["amount"] for b in losing_bets)   # dinero de apostadores que perdieron
         win_pool_sum = sum(b["amount"] for b in winning_bets)  # dinero de apostadores que ganaron
 
-        # ── Distribución del pool perdedor ────────────────────────────────
-        # HOUSE_CUT%      → ganancia de la casa
-        # field_cut_pct%  → bono para jugadores de cancha ganadores
-        # el resto        → premio a repartir entre apostadores ganadores
-        #
-        # Los apostadores ganadores reciben: su monto de vuelta + su parte del premio
-        # (su monto ya fue descontado al aprobar la apuesta, así que el pago neto
-        #  para ellos es: monto + premio_proporcional)
-        #
-        # Si win_pool_sum > losing_pool * (1 - HOUSE_CUT - field_cut_pct),
-        # la casa tiene que poner dinero extra del house_budget para cubrir.
-        # ─────────────────────────────────────────────────────────────────
+        # ════════════════════════════════════════════════════════════════
+        # MODELO FÍSICO DE PAGOS:
+        # El dinero apostado ya fue descontado del balance al aprobar.
+        # Al ganar: el jugador recibe su apuesta de vuelta + su parte del
+        #           pool perdedor (menos los cortes de casa y cancha).
+        # Al perder: no se hace nada más (el dinero ya salió del balance).
+        # ────────────────────────────────────────────────────────────────
+        # Del pool total (losing + winning):
+        #   HOUSE_CUT%        del losing_pool → ganancia de la casa
+        #   field_cut_pct%    del losing_pool → bono jugadores de cancha
+        #   resto del losing  → se reparte entre apostadores ganadores
+        #   winning_pool      → se devuelve íntegro a apostadores ganadores
+        # ════════════════════════════════════════════════════════════════
         house_share_bets  = round(losing_pool * HOUSE_CUT, 2)
         field_bonus       = round(losing_pool * ev["field_cut_pct"], 2)
         prize_apostadores = round(losing_pool - house_share_bets - field_bonus, 2)
 
-        # Pago total a ganadores = devolver sus apuestas + repartir el premio
-        total_pago_ganadores = win_pool_sum + max(0, prize_apostadores)
-
-        # Si el premio es negativo (win_pool > losing_pool neto), la casa cubre la diferencia
-        deficit_casa = max(0, round(win_pool_sum - prize_apostadores - losing_pool, 2)) if prize_apostadores < 0 else 0
-
-        # Registrar ganancia/costo de la casa en apuestas
-        ganancia_neta_casa = house_share_bets - deficit_casa
-        if ganancia_neta_casa != 0:
+        if house_share_bets > 0:
             db.execute("INSERT INTO house_log (event_id,amount,note,created_at) VALUES (?,?,?,?)",
-                (eid, ganancia_neta_casa,
-                 f"Casa: {int(HOUSE_CUT*100)}% pool perdedor ${house_share_bets:,.0f}" +
-                 (f" - deficit cubierto ${deficit_casa:,.0f}" if deficit_casa > 0 else ""),
-                 now()))
-        elif house_share_bets > 0:
-            db.execute("INSERT INTO house_log (event_id,amount,note,created_at) VALUES (?,?,?,?)",
-                (eid, house_share_bets, f"Casa {int(HOUSE_CUT*100)}% del pool de apuestas perdedoras", now()))
+                (eid, house_share_bets, f"Casa {int(HOUSE_CUT*100)}% del pool perdedor", now()))
 
-        # Si hay déficit, descontar del house_budget
-        if deficit_casa > 0:
-            db.execute("UPDATE events SET house_budget=house_budget-? WHERE id=?", (deficit_casa, eid))
-
-        # Cada apostador ganador recupera su monto + su parte proporcional del premio
+        # Ganadores: recuperan su apuesta + parte proporcional del prize
         for b in winning_bets:
             share  = (b["amount"] / win_pool_sum) if win_pool_sum > 0 else 0
-            payout = round(b["amount"] + max(0, prize_apostadores) * share, 2)
+            payout = round(b["amount"] + prize_apostadores * share, 2)
             db.execute("UPDATE bets SET result='won', payout=? WHERE id=?", (payout, b["id"]))
             db.execute("UPDATE users SET balance=balance+? WHERE id=?", (payout, b["user_id"]))
         for b in losing_bets:
