@@ -825,6 +825,32 @@ def update_entry_fee(eid):
     flash(f"Cuota de entrada actualizada a ${fee:,.0f}.","success")
     return redirect(url_for("admin_panel"))
 
+
+# ── ADMIN: RESET COMPLETO DE DATOS (mantiene admin y tokens) ─────────────────
+
+@app.route("/admin/reset_data", methods=["POST"])
+@login_required
+@admin_required
+def reset_data():
+    """Borra todos los eventos, apuestas, entradas y saldos de jugadores.
+    Útil para limpiar datos de prueba. Los tokens y el admin se mantienen."""
+    confirm = request.form.get("confirm", "")
+    if confirm != "RESET":
+        flash("Debes escribir RESET para confirmar.", "error")
+        return redirect(url_for("admin_panel"))
+    with get_db() as db:
+        db.execute("DELETE FROM events")
+        db.execute("DELETE FROM event_odds")
+        db.execute("DELETE FROM entries")
+        db.execute("DELETE FROM bets")
+        db.execute("DELETE FROM bet_requests")
+        db.execute("DELETE FROM cash_requests")
+        db.execute("DELETE FROM house_log")
+        db.execute("DELETE FROM field_players")
+        db.execute("UPDATE users SET balance=0.0 WHERE role='player'")
+    flash("Datos reseteados. Todos los eventos y apuestas fueron eliminados.", "success")
+    return redirect(url_for("admin_panel"))
+
 with app.app_context():
     init_db()
     # Migración: agregar odd_at_request a bet_requests si no existe

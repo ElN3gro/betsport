@@ -468,4 +468,21 @@ function toggleOdds(sport) {
     </tbody>
   </table>
 </div>
+
+<!-- ── RESET DE DATOS ───────────────────────────────────────────── -->
+<div class="section-title" style="color:var(--red)">⚠️ Zona peligrosa</div>
+<div class="card" style="border-color:rgba(239,68,68,.3)">
+  <div class="card-title" style="color:var(--red)">Reset de datos de prueba</div>
+  <div style="font-size:13px;color:var(--text2);margin-bottom:12px">
+    Borra <strong>todos los eventos, apuestas, entradas y saldos</strong> de jugadores.
+    Los tokens y las cuentas de usuarios se mantienen. Escribe <code>RESET</code> para confirmar.
+  </div>
+  <form method="POST" action="{{ url_for('reset_data') }}"
+    onsubmit="return confirm('¿Seguro? Esto borra TODOS los eventos y apuestas.')">
+    <div class="inline-form">
+      <input type="text" name="confirm" placeholder="Escribe RESET para confirmar" style="max-width:280px">
+      <button type="submit" class="btn btn-danger">Resetear datos</button>
+    </div>
+  </form>
+</div>
 {% endblock %}
