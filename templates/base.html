@@ -3,17 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{% block title %}BetSport{% endblock %}</title>
+<title>{% block title %}APUUSM{% endblock %}</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#0f1117;--bg2:#1a1d27;--bg3:#22263a;
-  --border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.18);
+  --bg:#0d0f14;--bg2:#13161f;--bg3:#1c2030;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.15);
   --text:#f0f0f0;--text2:#9ca3af;--text3:#6b7280;
-  --blue:#3b82f6;--blue-l:#93c5fd;--blue-bg:rgba(59,130,246,0.13);
+
+  /* Colores USM: rojo, amarillo, azul */
+  --usm-red:#c8102e;--usm-red-l:#e8354f;--usm-red-bg:rgba(200,16,46,0.13);
+  --usm-yellow:#f5c518;--usm-yellow-bg:rgba(245,197,24,0.12);
+  --usm-blue:#003da5;--usm-blue-l:#4d7fd4;--usm-blue-bg:rgba(0,61,165,0.18);
+
+  /* Mapeo a las variables genéricas que usa el resto del código */
+  --blue:var(--usm-blue);--blue-l:var(--usm-blue-l);--blue-bg:var(--usm-blue-bg);
   --green:#22c55e;--green-bg:rgba(34,197,94,0.12);
-  --red:#ef4444;--red-bg:rgba(239,68,68,0.12);
-  --amber:#f59e0b;--amber-bg:rgba(245,158,11,0.12);
+  --red:var(--usm-red-l);--red-bg:var(--usm-red-bg);
+  --amber:var(--usm-yellow);--amber-bg:var(--usm-yellow-bg);
   --r:10px;--rl:14px;
 }
 body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
@@ -21,9 +28,12 @@ a{color:var(--blue-l);text-decoration:none}
 a:hover{text-decoration:underline}
 
 /* NAV */
-nav{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between;height:56px}
-.logo{font-size:20px;font-weight:700;color:var(--text)}
-.logo span{color:var(--blue)}
+nav{background:var(--bg2);border-bottom:3px solid var(--usm-red);padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between;height:56px}
+.logo{font-size:20px;font-weight:800;color:var(--text);letter-spacing:-.5px}
+.logo .apu{color:var(--text)}
+.logo .usm{color:var(--usm-red)}
+.logo .dot{color:var(--usm-yellow);margin:0 1px}
+.logo .sub{font-size:10px;font-weight:500;color:var(--text3);letter-spacing:.04em;margin-left:6px;vertical-align:middle}
 .nav-links{display:flex;align-items:center;gap:8px}
 .nav-links a{color:var(--text2);font-size:13px;padding:6px 12px;border-radius:7px;transition:all .15s}
 .nav-links a:hover{background:var(--bg3);color:var(--text);text-decoration:none}
@@ -113,7 +123,9 @@ tr:last-child td{border-bottom:none}
 <body>
 {% if session.user_id %}
 <nav>
-  <div class="logo">Bet<span>Sport</span></div>
+  <div class="logo">
+    <span class="apu">APU</span><span class="usm">USM</span><span class="dot">·</span><span class="sub">USM Apuestas</span>
+  </div>
   <div class="nav-links">
     {% if session.role == 'admin' %}
       <a href="{{ url_for('admin_panel') }}">Panel Admin</a>
@@ -143,7 +155,8 @@ tr:last-child td{border-bottom:none}
 </div>
 
 <div style="text-align:center;padding:20px 16px 28px;font-size:11px;color:var(--text3);border-top:1px solid var(--border);margin-top:40px">
-  BetSport — Plataforma privada &nbsp;·&nbsp;
+  <span style="color:var(--usm-red);font-weight:700">APU</span><span style="font-weight:700">USM</span>
+  — Plataforma privada · Paralelo USM &nbsp;·&nbsp;
   <a href="{{ url_for('terms') }}" style="color:var(--text3);text-decoration:underline">Términos y Condiciones</a>
 </div>
 
