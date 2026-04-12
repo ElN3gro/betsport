@@ -624,15 +624,21 @@ def approve_cash(rid):
         t = req["type"]
         if t.startswith("entry_"):
             eid = int(t.split("_")[1])
+            fee = req["amount"]
+            # 90% del fee → saldo apostable del jugador
+            # 10% del fee → presupuesto de la casa del evento
+            player_share = round(fee * 0.90, 2)
+            house_share  = round(fee - player_share, 2)
             db.execute("INSERT OR IGNORE INTO entries (user_id,event_id,paid_at) VALUES (?,?,?)",
                 (req["user_id"], eid, now()))
-            db.execute("UPDATE events SET house_budget=house_budget+? WHERE id=?", (req["amount"], eid))
+            db.execute("UPDATE users SET balance=balance+? WHERE id=?", (player_share, req["user_id"]))
+            db.execute("UPDATE events SET house_budget=house_budget+? WHERE id=?", (house_share, eid))
             db.execute("INSERT INTO house_log (event_id,amount,note,created_at) VALUES (?,?,?,?)",
-                (eid, req["amount"], f"Cuota entrada apostador ID {req['user_id']}", now()))
+                (eid, house_share, f"10% cuota entrada apostador ID {req['user_id']}", now()))
         elif t in ("deposit","manual_adjust"):
             db.execute("UPDATE users SET balance=balance+? WHERE id=?", (req["amount"], req["user_id"]))
         db.execute("UPDATE cash_requests SET status='approved', resolved_at=? WHERE id=?", (now(), rid))
-    flash("Entrada confirmada. La cuota fue acreditada al presupuesto de la casa.","success")
+    flash(f"Entrada confirmada. 90% del fee acreditado al jugador, 10% a la casa.","success")
     return redirect(url_for("admin_panel"))
 
 @app.route("/admin/cash/reject/<int:rid>", methods=["POST"])
