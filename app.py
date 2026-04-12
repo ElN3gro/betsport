@@ -405,7 +405,14 @@ def create_event():
     league         = f["league"].strip()
     entry_fee      = float(f.get("entry_fee", 0))
     initial_budget = float(f.get("initial_budget", 0))
-    field_cut_pct  = float(f.get("field_cut_pct", FIELD_CUT))
+    try:
+        field_cut_pct_raw = float(f.get("field_cut_pct", FIELD_CUT * 100))
+        # El usuario ingresa un número entre 0 y 50 (ej: 7 = 7%)
+        # Si ingresa > 1, asumimos que es porcentaje y dividimos entre 100
+        field_cut_pct = round(field_cut_pct_raw / 100.0, 4) if field_cut_pct_raw > 1 else field_cut_pct_raw
+        field_cut_pct = max(0.0, min(0.50, field_cut_pct))  # clamp 0%–50%
+    except:
+        field_cut_pct = FIELD_CUT
 
     if sport == "futbol":
         odd_home = float(f.get("odd_home", 2.20))
@@ -478,10 +485,10 @@ def adjust_odds(eid):
         new_pct = request.form.get("field_cut_pct","").strip()
         if new_pct:
             try:
-                pct = round(float(new_pct), 3)
-                if pct < 0 or pct > 0.5:
-                    flash("El % para jugadores de cancha debe estar entre 0 y 50%.","error")
-                    return redirect(url_for("admin_panel"))
+                pct_raw = float(new_pct)
+                # Normalizar: si > 1, asumir que es porcentaje (ej: 7 → 0.07)
+                pct = round(pct_raw / 100.0, 4) if pct_raw > 1 else round(pct_raw, 4)
+                pct = max(0.0, min(0.50, pct))  # clamp 0%–50%
                 db.execute("UPDATE events SET field_cut_pct=? WHERE id=?", (pct, eid))
             except ValueError:
                 flash("Porcentaje invalido.","error"); return redirect(url_for("admin_panel"))
