@@ -432,6 +432,7 @@ def create_event():
     away           = f["away"].strip()
     league         = f["league"].strip()
     entry_fee      = float(f.get("entry_fee", 0))
+    initial_budget = float(f.get("initial_budget", 0))
     field_cut_pct  = float(f.get("field_cut_pct", FIELD_CUT))
 
     if sport == "futbol":
@@ -444,8 +445,11 @@ def create_event():
 
     with get_db() as db:
         cur = db.execute("""INSERT INTO events (sport,home,away,league,entry_fee,house_budget,pool,status,field_cut_pct,created_at)
-            VALUES (?,?,?,?,?,0,0,'open',?,?)""", (sport,home,away,league,entry_fee,field_cut_pct,now()))
+            VALUES (?,?,?,?,?,?,0,'open',?,?)""", (sport,home,away,league,entry_fee,initial_budget,field_cut_pct,now()))
         eid = cur.lastrowid
+        if initial_budget > 0:
+            db.execute("INSERT INTO house_log (event_id,amount,note,created_at) VALUES (?,?,?,?)",
+                (eid, initial_budget, "Presupuesto inicial de la casa", now()))
 
         if sport == "futbol":
             options = [("home","Local",odd_home),("draw","Empate",odd_draw),("away","Visitante",odd_away)]
@@ -844,6 +848,21 @@ def adjust_house_budget(eid):
         db.execute("INSERT INTO house_log (event_id,amount,note,created_at) VALUES (?,?,?,?)",
             (eid, amount, note, now()))
     flash(f"Presupuesto de la casa ajustado ${amount:+,.0f} para el evento.","success")
+    return redirect(url_for("admin_panel"))
+
+@app.route("/admin/event/<int:eid>/entry_fee/update", methods=["POST"])
+@login_required
+@admin_required
+def update_entry_fee(eid):
+    try: fee = float(request.form["entry_fee"])
+    except: flash("Monto invalido.","error"); return redirect(url_for("admin_panel"))
+    if fee < 0: flash("La cuota no puede ser negativa.","error"); return redirect(url_for("admin_panel"))
+    with get_db() as db:
+        ev = db.execute("SELECT * FROM events WHERE id=? AND status!='finished'", (eid,)).fetchone()
+        if not ev:
+            flash("Evento no valido o ya finalizado.","error"); return redirect(url_for("admin_panel"))
+        db.execute("UPDATE events SET entry_fee=? WHERE id=?", (fee, eid))
+    flash(f"Cuota de entrada actualizada a ${fee:,.0f}.","success")
     return redirect(url_for("admin_panel"))
 
 with app.app_context():
