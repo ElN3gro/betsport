@@ -30,15 +30,10 @@
 <div class="section-title">🎲 Solicitudes de apuesta — requieren tu aprobación</div>
 <div class="card" style="border-color:rgba(59,130,246,.3);padding:0;overflow:hidden">
   <table>
-    <thead>
-      <tr>
-        <th>Jugador</th><th>Teléfono</th><th>Partido</th><th>Opción</th>
-        <th>Monto</th><th>Cuota</th><th>Ganancia neta</th><th>Disponible en pool</th><th>Acciones</th>
-      </tr>
-    </thead>
+    <thead><tr><th>Jugador</th><th>Teléfono</th><th>Partido</th><th>Opción</th><th>Monto</th><th>Fecha</th><th>Acciones</th></tr></thead>
     <tbody>
       {% for br in pending_bets %}
-      <tr style="{% if not br['aprobable'] %}background:rgba(239,68,68,0.06){% endif %}">
+      <tr>
         <td>
           <a href="{{ url_for('view_player', uid=br['user_id']) }}" style="font-weight:500">{{ br['full_name'] }}</a>
           <div style="font-size:11px;color:var(--text3)">@{{ br['username'] }}</div>
@@ -47,25 +42,11 @@
         <td style="font-size:12px">{{ br['home'] }} vs {{ br['away'] }}</td>
         <td><span class="badge badge-open">{{ br['option_label'] }}</span></td>
         <td style="font-weight:600;color:var(--blue-l)">${{ "%.0f"|format(br['amount']) }}</td>
-        <td style="color:var(--amber)">{{ "%.2f"|format(br['current_odd']) }}x</td>
-        <td style="font-weight:600;color:var(--green)">${{ "%.0f"|format(br['ganancia_neta']) }}</td>
+        <td style="font-size:11px;color:var(--text3)">{{ br['created_at'][:16] }}</td>
         <td>
-          {% if br['aprobable'] %}
-            <span style="color:var(--green);font-weight:600">${{ "%.0f"|format(br['disponible']) }}</span>
-            <div style="font-size:10px;color:var(--text3)">✓ Suficiente</div>
-          {% else %}
-            <span style="color:var(--red);font-weight:600">${{ "%.0f"|format(br['disponible']) }}</span>
-            <div style="font-size:10px;color:var(--red)">✗ Pool insuficiente</div>
-          {% endif %}
-        </td>
-        <td>
-          {% if br['aprobable'] %}
           <form method="POST" action="{{ url_for('approve_bet_request', brid=br['id']) }}" style="display:inline">
             <button class="btn btn-sm btn-success">✓ Aprobar</button>
           </form>
-          {% else %}
-          <button class="btn btn-sm" style="opacity:.4;cursor:not-allowed;border-color:var(--green);color:var(--green)" disabled title="Pool contrario insuficiente para cubrir esta apuesta">✓ Aprobar</button>
-          {% endif %}
           <form method="POST" action="{{ url_for('reject_bet_request', brid=br['id']) }}" style="display:inline;margin-left:4px">
             <button class="btn btn-sm btn-danger">✗ Rechazar</button>
           </form>
@@ -74,9 +55,6 @@
       {% endfor %}
     </tbody>
   </table>
-  <div style="padding:10px 14px;font-size:11px;color:var(--text3);border-top:1px solid var(--border)">
-    💡 La ganancia neta se paga con el dinero apostado por el lado contrario. Si el pool contrario no alcanza, la apuesta se bloquea para evitar pérdidas.
-  </div>
 </div>
 {% endif %}
 
@@ -252,15 +230,23 @@ function toggleOdds(sport) {
       <div style="font-size:17px;font-weight:600">{{ ev['home'] }} vs {{ ev['away'] }}</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <span class="badge badge-{{ ev['status'] }}">{{ ev['status'] }}</span>
-      {% if ev['status'] == 'open' %}
+      {% if ev['status'] == 'draft' %}
+        <span class="badge badge-draft">✏️ Borrador</span>
+        <form method="POST" action="{{ url_for('reopen_event', eid=ev['id']) }}">
+          <button class="btn btn-sm btn-primary">▶ Abrir evento</button>
+        </form>
+      {% elif ev['status'] == 'open' %}
+        <span class="badge badge-open">Abierto</span>
         <form method="POST" action="{{ url_for('close_event', eid=ev['id']) }}">
-          <button class="btn btn-sm" style="border-color:var(--amber);color:var(--amber)">Cerrar apuestas</button>
+          <button class="btn btn-sm" style="border-color:var(--amber);color:var(--amber)">⏸ Cerrar apuestas</button>
         </form>
       {% elif ev['status'] == 'closed' %}
+        <span class="badge badge-closed">Cerrado</span>
         <form method="POST" action="{{ url_for('reopen_event', eid=ev['id']) }}">
-          <button class="btn btn-sm" style="border-color:var(--green);color:var(--green)">Reabrir apuestas</button>
+          <button class="btn btn-sm" style="border-color:var(--green);color:var(--green)">▶ Reabrir apuestas</button>
         </form>
+      {% elif ev['status'] == 'finished' %}
+        <span class="badge badge-finished">Finalizado</span>
       {% endif %}
       {% if ev['status'] != 'finished' %}
         <form method="POST" action="{{ url_for('delete_event', eid=ev['id']) }}"
