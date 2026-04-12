@@ -30,7 +30,7 @@
 <div class="section-title">🎲 Solicitudes de apuesta — requieren tu aprobación</div>
 <div class="card" style="border-color:rgba(59,130,246,.3);padding:0;overflow:hidden">
   <table>
-    <thead><tr><th>Jugador</th><th>Teléfono</th><th>Partido</th><th>Opción</th><th>Monto</th><th>Fecha</th><th>Acciones</th></tr></thead>
+    <thead><tr><th>Jugador</th><th>Teléfono</th><th>Partido</th><th>Opción</th><th>Monto</th><th>Cuota al solicitar</th><th>Disponible</th><th>Fecha</th><th>Acciones</th></tr></thead>
     <tbody>
       {% for br in pending_bets %}
       <tr>
@@ -42,10 +42,23 @@
         <td style="font-size:12px">{{ br['home'] }} vs {{ br['away'] }}</td>
         <td><span class="badge badge-open">{{ br['option_label'] }}</span></td>
         <td style="font-weight:600;color:var(--blue-l)">${{ "%.0f"|format(br['amount']) }}</td>
+        <td>
+          <span style="font-weight:600;color:var(--amber)">{{ "%.2f"|format(br['odd_at_request']) }}x</span>
+          {% if br['current_odd'] != br['odd_at_request'] %}
+          <div style="font-size:10px;color:var(--text3)">actual: {{ "%.2f"|format(br['current_odd']) }}x</div>
+          {% endif %}
+        </td>
+        <td>
+          {% if br['aprobable'] %}
+            <span style="color:var(--green);font-size:12px">✓ ${{ "%.0f"|format(br['disponible']) }}</span>
+          {% else %}
+            <span style="color:var(--red);font-size:12px">✗ insuf.</span>
+          {% endif %}
+        </td>
         <td style="font-size:11px;color:var(--text3)">{{ br['created_at'][:16] }}</td>
         <td>
           <form method="POST" action="{{ url_for('approve_bet_request', brid=br['id']) }}" style="display:inline">
-            <button class="btn btn-sm btn-success">✓ Aprobar</button>
+            <button class="btn btn-sm btn-success" {% if not br['aprobable'] %}title="Pool insuficiente"{% endif %}>✓ Aprobar</button>
           </form>
           <form method="POST" action="{{ url_for('reject_bet_request', brid=br['id']) }}" style="display:inline;margin-left:4px">
             <button class="btn btn-sm btn-danger">✗ Rechazar</button>
