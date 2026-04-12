@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}Perfil de {{ user['full_name'] }} — BetSport{% endblock %}
+{% block content %}
+<div style="margin-bottom:16px">
+  <a href="{{ url_for('admin_panel') }}" style="font-size:13px;color:var(--text3)">← Volver al panel</a>
+</div>
+
+<div style="font-size:20px;font-weight:600;margin-bottom:20px">
+  Perfil: {{ user['full_name'] }}
+</div>
+
+<div class="grid2">
+  <!-- Ficha del jugador -->
+  <div class="card">
+    <div class="card-title">Ficha de identificación</div>
+    <table>
+      <tr><td style="color:var(--text3);width:40%">Nombre completo</td><td style="font-weight:600;font-size:15px">{{ user['full_name'] }}</td></tr>
+      <tr><td style="color:var(--text3)">Usuario</td><td>@{{ user['username'] }}</td></tr>
+      <tr><td style="color:var(--text3)">Teléfono</td><td style="font-weight:500;color:var(--blue-l)">{{ user['phone'] }}</td></tr>
+      <tr><td style="color:var(--text3)">Email</td><td>{{ user['email'] or '—' }}</td></tr>
+      <tr><td style="color:var(--text3)">Registrado</td><td>{{ user['created_at'][:10] }}</td></tr>
+      <tr><td style="color:var(--text3)">Saldo actual</td>
+          <td style="font-size:20px;font-weight:700;color:var(--green)">${{ "%.0f"|format(user['balance']) }}</td></tr>
+    </table>
+    <!-- Ajuste de saldo manual -->
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;font-weight:500">Ajuste manual de saldo</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">
+        Usa valores positivos para sumar saldo (ej: 5000) o negativos para restar (ej: -1000).
+      </div>
+      <form method="POST" action="{{ url_for('adjust_balance', uid=user['id']) }}">
+        <div class="inline-form">
+          <input type="number" name="amount" placeholder="Monto (+ sumar / - restar)" step="1" required>
+          <input type="text" name="note" placeholder="Motivo" style="min-width:100px">
+          <button type="submit" class="btn btn-primary btn-sm">Aplicar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Estadísticas -->
+  <div>
+    <div class="stats-grid" style="grid-template-columns:1fr 1fr">
+      <div class="stat-card">
+        <div class="slabel">Total apostado</div>
+        <div class="sval blue">${{ "%.0f"|format(stats.total_bet) }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="slabel">Total ganado</div>
+        <div class="sval green">${{ "%.0f"|format(stats.total_won) }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="slabel">Apuestas ganadas</div>
+        <div class="sval green">{{ stats.bets_won }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="slabel">Apuestas perdidas</div>
+        <div class="sval" style="color:var(--red)">{{ stats.bets_lost }}</div>
+      </div>
+    </div>
+
+    <!-- Partidos con entrada -->
+    <div class="card">
+      <div class="card-title">Entradas confirmadas</div>
+      {% if entries %}
+      <table>
+        <thead><tr><th>Partido</th><th>Deporte</th><th>Cuota</th><th>Fecha</th><th></th></tr></thead>
+        <tbody>
+          {% for e in entries %}
+          <tr>
+            <td>{{ e['home'] }} vs {{ e['away'] }}</td>
+            <td>{{ '⚽' if e['sport']=='futbol' else '🏀' }}</td>
+            <td>${{ "%.0f"|format(e['entry_fee']) }}</td>
+            <td style="font-size:11px;color:var(--text3)">{{ e['paid_at'][:16] }}</td>
+            <td>
+              <form method="POST" action="{{ url_for('remove_entry', uid=user['id'], eid=e['event_id']) }}"
+                onsubmit="return confirm('¿Quitar entrada? Se ajustará el presupuesto de la casa.')">
+                <button class="btn btn-sm btn-danger">Quitar</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div style="color:var(--text3);font-size:13px">Sin entradas confirmadas.</div>
+      {% endif %}
+
+      <!-- Confirmar entrada en evento -->
+      {% if available_events %}
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:8px;font-weight:500">
+          ✅ Confirmar entrada en evento
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:10px">
+          Al confirmar, la cuota de entrada se acredita al presupuesto de la casa del evento.
+        </div>
+        {% for ev in available_events %}
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+          <div>
+            <div style="font-size:13px;font-weight:500">{{ ev['home'] }} vs {{ ev['away'] }}</div>
+            <div style="font-size:11px;color:var(--text3)">
+              {{ '⚽' if ev['sport']=='futbol' else '🏀' }} {{ ev['league'] }}
+              — Cuota: ${{ "%.0f"|format(ev['entry_fee']) }}
+              — <span class="badge badge-{{ ev['status'] }}">{{ ev['status'] }}</span>
+            </div>
+          </div>
+          <form method="POST" action="{{ url_for('add_entry', uid=user['id'], eid=ev['id']) }}">
+            <button class="btn btn-sm btn-success">✓ Confirmar entrada</button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="font-size:12px;color:var(--text3);margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        El jugador ya tiene entrada en todos los eventos activos.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Historial de apuestas -->
+<div class="section-title">Historial de apuestas</div>
+{% if bets %}
+<div class="card" style="padding:0;overflow:hidden">
+  <table>
+    <thead>
+      <tr><th>Fecha</th><th>Partido</th><th>Opción</th><th>Apuesta</th><th>Cuota</th><th>Potencial</th><th>Resultado</th><th>Cobro</th></tr>
+    </thead>
+    <tbody>
+      {% for b in bets %}
+      <tr>
+        <td style="font-size:11px;color:var(--text3)">{{ b['created_at'][:16] }}</td>
+        <td>
+          <div style="font-size:11px;color:var(--text3)">{{ '⚽' if b['sport']=='futbol' else '🏀' }} {{ b['league'] }}</div>
+          <div>{{ b['home'] }} vs {{ b['away'] }}</div>
+        </td>
+        <td>{{ b['option_label'] }}</td>
+        <td>${{ "%.0f"|format(b['amount']) }}</td>
+        <td>{{ "%.2f"|format(b['odd_at_bet']) }}x</td>
+        <td>${{ "%.0f"|format(b['potential']) }}</td>
+        <td><span class="badge badge-{{ b['result'] }}">{{ b['result'] }}</span></td>
+        <td>{% if b['result']=='won' %}<span style="color:var(--green);font-weight:600">${{ "%.0f"|format(b['payout']) }}</span>{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card" style="color:var(--text3);font-size:13px">Sin apuestas.</div>
+{% endif %}
+
+<!-- Historial de pagos -->
+<div class="section-title">Historial de pagos / movimientos</div>
+<div class="card" style="padding:0;overflow:hidden">
+  <table>
+    <thead><tr><th>Concepto</th><th>Monto</th><th>Estado</th><th>Fecha</th></tr></thead>
+    <tbody>
+      {% for r in reqs %}
+      <tr>
+        <td style="font-size:12px">{{ r['note'] or r['type'] }}</td>
+        <td style="font-weight:500">
+          <span style="color:{% if r['amount'] >= 0 %}var(--green){% else %}var(--red){% endif %}">
+            ${{ "%.0f"|format(r['amount']) }}
+          </span>
+        </td>
+        <td><span class="badge badge-{{ r['status'] }}">{{ r['status'] }}</span></td>
+        <td style="font-size:11px;color:var(--text3)">{{ r['created_at'][:16] }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" style="color:var(--text3);text-align:center">Sin registros.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

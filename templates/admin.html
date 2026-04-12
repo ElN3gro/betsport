@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+{% block title %}Panel Admin — BetSport{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+  <div style="font-size:20px;font-weight:600">Panel de Administración</div>
+  <span class="badge badge-admin">Admin</span>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="slabel">Ganancia casa</div>
+    <div class="sval green">${{ "%.0f"|format(house_total) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="slabel">Jugadores web</div>
+    <div class="sval blue">{{ players|length }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="slabel">Eventos</div>
+    <div class="sval">{{ edata|length }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="slabel">Apuestas pendientes</div>
+    <div class="sval amber">{{ pending_bets|length }}</div>
+  </div>
+</div>
+
+<!-- ── SOLICITUDES DE APUESTA PENDIENTES ──────────────────────── -->
+{% if pending_bets %}
+<div class="section-title">🎲 Solicitudes de apuesta — requieren tu aprobación</div>
+<div class="card" style="border-color:rgba(59,130,246,.3);padding:0;overflow:hidden">
+  <table>
+    <thead><tr><th>Jugador</th><th>Teléfono</th><th>Partido</th><th>Opción</th><th>Monto</th><th>Fecha</th><th>Acciones</th></tr></thead>
+    <tbody>
+      {% for br in pending_bets %}
+      <tr>
+        <td>
+          <a href="{{ url_for('view_player', uid=br['user_id']) }}" style="font-weight:500">{{ br['full_name'] }}</a>
+          <div style="font-size:11px;color:var(--text3)">@{{ br['username'] }}</div>
+        </td>
+        <td style="font-size:13px">{{ br['phone'] }}</td>
+        <td style="font-size:12px">{{ br['home'] }} vs {{ br['away'] }}</td>
+        <td><span class="badge badge-open">{{ br['option_label'] }}</span></td>
+        <td style="font-weight:600;color:var(--blue-l)">${{ "%.0f"|format(br['amount']) }}</td>
+        <td style="font-size:11px;color:var(--text3)">{{ br['created_at'][:16] }}</td>
+        <td>
+          <form method="POST" action="{{ url_for('approve_bet_request', brid=br['id']) }}" style="display:inline">
+            <button class="btn btn-sm btn-success">✓ Aprobar</button>
+          </form>
+          <form method="POST" action="{{ url_for('reject_bet_request', brid=br['id']) }}" style="display:inline;margin-left:4px">
+            <button class="btn btn-sm btn-danger">✗ Rechazar</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<!-- ── PAGOS DE ENTRADA PENDIENTES ────────────────────────────── -->
+{% if pending_entries %}
+<div class="section-title">⚠️ Cuotas de entrada pendientes (apostadores web)</div>
+<div class="card" style="border-color:rgba(245,158,11,.3);padding:0;overflow:hidden">
+  <table>
+    <thead><tr><th>Jugador</th><th>Teléfono</th><th>Concepto</th><th>Cuota</th><th>Fecha</th><th>Acciones</th></tr></thead>
+    <tbody>
+      {% for r in pending_entries %}
+      <tr>
+        <td>
+          <a href="{{ url_for('view_player', uid=r['user_id']) }}" style="font-weight:500">{{ r['full_name'] }}</a>
+          <div style="font-size:11px;color:var(--text3)">@{{ r['username'] }}</div>
+        </td>
+        <td style="font-size:13px">{{ r['phone'] }}</td>
+        <td style="font-size:12px">{{ r['note'] }}</td>
+        <td style="font-weight:600;color:var(--amber)">${{ "%.0f"|format(r['amount']) }}</td>
+        <td style="font-size:11px;color:var(--text3)">{{ r['created_at'][:16] }}</td>
+        <td>
+          <form method="POST" action="{{ url_for('approve_cash', rid=r['id']) }}" style="display:inline">
+            <button class="btn btn-sm btn-success">✓ Aprobar</button>
+          </form>
+          <form method="POST" action="{{ url_for('reject_cash', rid=r['id']) }}" style="display:inline;margin-left:4px">
+            <button class="btn btn-sm btn-danger">✗ Rechazar</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<!-- ── TOKENS ──────────────────────────────────────────────────── -->
+<div class="section-title">Tokens de registro</div>
+<div class="grid2">
+  <div class="card">
+    <div class="card-title">Crear nuevo token</div>
+    <form method="POST" action="{{ url_for('create_token') }}">
+      <div class="form-group">
+        <label>Nota (para quién es)</label>
+        <input type="text" name="note" placeholder="Ej: Para Juan Pérez">
+      </div>
+      <button type="submit" class="btn btn-primary">Generar token</button>
+    </form>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <table>
+      <thead><tr><th>Token</th><th>Nota</th><th>Estado</th><th></th></tr></thead>
+      <tbody>
+        {% for t in tokens %}
+        <tr>
+          <td style="font-family:monospace;font-size:12px;color:var(--blue-l)">{{ t['token'] }}</td>
+          <td style="font-size:12px;color:var(--text2)">{{ t['note'] or '—' }}</td>
+          <td>
+            {% if t['used'] %}<span class="badge badge-approved">Usado — {{ t['used_by'] }}</span>
+            {% else %}<span class="badge badge-open">Disponible</span>{% endif %}
+          </td>
+          <td>
+            {% if not t['used'] %}
+            <form method="POST" action="{{ url_for('delete_token', tid=t['id']) }}">
+              <button class="btn btn-sm btn-danger">Eliminar</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── CREAR EVENTO ────────────────────────────────────────────── -->
+<div class="section-title">Eventos</div>
+<div class="card">
+  <div class="card-title">Crear evento</div>
+  <form method="POST" action="{{ url_for('create_event') }}">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      <div class="form-group">
+        <label>Deporte</label>
+        <select name="sport" id="sport-select" required onchange="toggleOdds(this.value)">
+          <option value="futbol">⚽ Fútbol</option>
+          <option value="basketball">🏀 Basketball</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Liga / Torneo</label>
+        <input type="text" name="league" required placeholder="La Liga, NBA…">
+      </div>
+      <div class="form-group">
+        <label>Cuota entrada apostadores ($)</label>
+        <input type="number" name="entry_fee" min="0" step="1" required placeholder="5000">
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      <div class="form-group">
+        <label>Equipo local</label>
+        <input type="text" name="home" required placeholder="Real Madrid">
+      </div>
+      <div class="form-group">
+        <label>Equipo visitante</label>
+        <input type="text" name="away" required placeholder="Barcelona">
+      </div>
+      <div class="form-group">
+        <label>% para jugadores de cancha ganadores</label>
+        <input type="number" name="field_cut_pct" min="0" max="50" step="0.1" placeholder="7" value="7">
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">% del pool de apuestas perdedoras</div>
+      </div>
+    </div>
+    <div style="background:var(--bg3);border-radius:var(--r);padding:14px;margin-bottom:14px">
+      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:10px">
+        📊 Multiplicadores iniciales
+        <span style="font-weight:400;color:var(--text3)"> — se ajustan automáticamente al recibir apuestas</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px" id="odds-futbol">
+        <div class="form-group" style="margin:0">
+          <label>Local (x)</label>
+          <input type="number" name="odd_home" step="0.01" min="1.02" value="2.20">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Empate (x)</label>
+          <input type="number" name="odd_draw" step="0.01" min="1.02" value="3.20">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Visitante (x)</label>
+          <input type="number" name="odd_away" step="0.01" min="1.02" value="2.80">
+        </div>
+      </div>
+      <div style="display:none;grid-template-columns:1fr 1fr;gap:10px" id="odds-basketball">
+        <div class="form-group" style="margin:0">
+          <label>Local (x)</label>
+          <input type="number" name="odd_home_bk" step="0.01" min="1.02" value="1.90">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Visitante (x)</label>
+          <input type="number" name="odd_away_bk" step="0.01" min="1.02" value="2.00">
+        </div>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Crear evento</button>
+  </form>
+</div>
+
+<script>
+function toggleOdds(sport) {
+  var fEl = document.getElementById('odds-futbol');
+  var bEl = document.getElementById('odds-basketball');
+  var hEl = document.querySelector('[name="odd_home"]');
+  var dEl = document.querySelector('[name="odd_draw"]');
+  var aEl = document.querySelector('[name="odd_away"]');
+  if (sport === 'basketball') {
+    fEl.style.display = 'none'; bEl.style.display = 'grid';
+    hEl.disabled = true; dEl.disabled = true; aEl.disabled = true;
+    document.querySelector('[name="odd_home_bk"]').name = 'odd_home';
+    document.querySelector('[name="odd_away_bk"]').name = 'odd_away';
+  } else {
+    fEl.style.display = 'grid'; bEl.style.display = 'none';
+    hEl.disabled = false; dEl.disabled = false; aEl.disabled = false;
+  }
+}
+</script>
+
+<!-- ── LISTA DE EVENTOS ────────────────────────────────────────── -->
+{% for ed in edata %}
+{% set ev = ed.event %}
+<div class="card" style="{% if ev['status']=='finished' %}opacity:.75{% endif %}">
+
+  <!-- Cabecera del evento -->
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+    <div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:3px">
+        {{ '⚽' if ev['sport']=='futbol' else '🏀' }} {{ ev['league'] }}
+        — {{ ed.count }} apostadores — Presupuesto casa ${{ "%.0f"|format(ev['house_budget']) }}
+        — % cancha: {{ "%.0f"|format(ev['field_cut_pct']*100) }}%
+      </div>
+      <div style="font-size:17px;font-weight:600">{{ ev['home'] }} vs {{ ev['away'] }}</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="badge badge-{{ ev['status'] }}">{{ ev['status'] }}</span>
+      {% if ev['status'] == 'open' %}
+        <form method="POST" action="{{ url_for('close_event', eid=ev['id']) }}">
+          <button class="btn btn-sm" style="border-color:var(--amber);color:var(--amber)">Cerrar apuestas</button>
+        </form>
+      {% elif ev['status'] == 'closed' %}
+        <form method="POST" action="{{ url_for('reopen_event', eid=ev['id']) }}">
+          <button class="btn btn-sm" style="border-color:var(--green);color:var(--green)">Reabrir apuestas</button>
+        </form>
+      {% endif %}
+      {% if ev['status'] != 'finished' %}
+        <form method="POST" action="{{ url_for('delete_event', eid=ev['id']) }}"
+          onsubmit="return confirm('¿Eliminar evento? Se borrarán todas las apuestas.')">
+          <button class="btn btn-sm btn-danger">Eliminar</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Odds actuales -->
+  <div class="odds-grid {{ 'g3' if ed.odds|length==3 else 'g2' }}" style="margin-bottom:12px">
+    {% for o in ed.odds %}
+    <div class="odd-card {{ 'blocked' if o['odd'] <= 1.01 else '' }}" style="cursor:default">
+      <div class="odd-key">{{ o['label'] }}</div>
+      <div class="odd-val {{ 'blocked' if o['odd'] <= 1.01 else '' }}">
+        {% if o['odd'] <= 1.01 %}🔒 Bloqueado{% else %}{{ "%.2f"|format(o['odd']) }}x{% endif %}
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:3px">${{ "%.0f"|format(o['total_bet']) }} apostados</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Ajuste manual de multiplicadores y % cancha -->
+  {% if ev['status'] != 'finished' %}
+  <details style="margin-bottom:12px">
+    <summary style="font-size:12px;color:var(--blue-l);cursor:pointer;padding:4px 0">✏️ Ajustar multiplicadores y % cancha</summary>
+    <div style="margin-top:10px;padding:12px;background:var(--bg3);border-radius:var(--r);border:1px solid var(--border)">
+      <form method="POST" action="{{ url_for('adjust_odds', eid=ev['id']) }}">
+        <div style="display:grid;grid-template-columns:{{ 'repeat(3,1fr)' if ed.odds|length==3 else 'repeat(2,1fr)' }} 1fr;gap:10px;margin-bottom:10px">
+          {% for o in ed.odds %}
+          <div>
+            <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px">{{ o['label'] }} ({{ "%.2f"|format(o['odd']) }}x)</label>
+            <input type="number" name="odd_{{ o['option_key'] }}" step="0.01" min="1.02" placeholder="{{ "%.2f"|format(o['odd']) }}">
+          </div>
+          {% endfor %}
+          <div>
+            <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px">% cancha (actual: {{ "%.0f"|format(ev['field_cut_pct']*100) }}%)</label>
+            <input type="number" name="field_cut_pct" step="0.1" min="0" max="50" placeholder="{{ "%.0f"|format(ev['field_cut_pct']*100) }}">
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Deja vacío lo que no quieras modificar.</div>
+        <button type="submit" class="btn btn-sm btn-primary">Aplicar cambios</button>
+      </form>
+    </div>
+  </details>
+  {% endif %}
+
+  <!-- Jugadores de cancha -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    {% for side_key, side_label, side_players, side_total in [
+      ('home', ev['home'], ed.fp_home, ed.total_field_home),
+      ('away', ev['away'], ed.fp_away, ed.total_field_away)
+    ] %}
+    <div style="background:var(--bg3);border-radius:var(--r);padding:12px">
+      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">
+        🏃 {{ side_label }} — ${{ "%.0f"|format(side_total) }} recaudado
+      </div>
+      {% if side_players %}
+      <table style="font-size:12px;margin-bottom:8px">
+        <thead><tr><th>Nombre</th><th>Cuota</th>{% if ev['status']=='finished' %}<th>Cobro</th>{% endif %}<th></th></tr></thead>
+        <tbody>
+          {% for p in side_players %}
+          <tr>
+            <td>{{ p['name'] }}</td>
+            <td style="color:var(--amber)">${{ "%.0f"|format(p['entry_paid']) }}</td>
+            {% if ev['status']=='finished' %}
+            <td style="color:var(--green);font-weight:600">${{ "%.0f"|format(p['payout']) }}</td>
+            {% endif %}
+            <td>
+              {% if ev['status'] != 'finished' %}
+              <form method="POST" action="{{ url_for('delete_field_player', fpid=p['id']) }}">
+                <button class="btn btn-sm btn-danger" style="padding:2px 8px;font-size:11px">✕</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div style="font-size:12px;color:var(--text3);margin-bottom:8px">Sin jugadores aún.</div>
+      {% endif %}
+      {% if ev['status'] != 'finished' %}
+      <form method="POST" action="{{ url_for('add_field_player', eid=ev['id']) }}">
+        <input type="hidden" name="team_key" value="{{ side_key }}">
+        <div style="display:grid;grid-template-columns:1fr auto;gap:6px">
+          <input type="text" name="name" placeholder="Nombre jugador" required style="font-size:12px;padding:6px 10px">
+          <input type="number" name="entry_paid" placeholder="$" min="0" step="1" required style="width:80px;font-size:12px;padding:6px 10px">
+        </div>
+        <button type="submit" class="btn btn-sm btn-primary" style="margin-top:6px;width:100%">+ Agregar</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Declarar ganador -->
+  {% if ev['status'] != 'finished' %}
+  <form method="POST" action="{{ url_for('finish_event', eid=ev['id']) }}"
+    onsubmit="return confirm('¿Finalizar y pagar? Esta acción no se puede deshacer.')">
+    <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:var(--r);padding:12px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;font-weight:500">Declarar resultado y pagar</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select name="winner_key" required style="width:auto;min-width:160px">
+          {% for o in ed.odds %}
+          <option value="{{ o['option_key'] }}">Ganador: {{ o['label'] }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-primary">Finalizar y pagar</button>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px">
+        Se pagará a apostadores ganadores, a jugadores de cancha ganadores, y se registrará la ganancia de la casa.
+      </div>
+    </div>
+  </form>
+  {% else %}
+  <div style="font-size:13px;color:var(--green)">
+    ✓ Finalizado — Ganador:
+    {% for o in ed.odds %}{% if o['option_key']==ev['winner_key'] %}{{ o['label'] }}{% endif %}{% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endfor %}
+
+<!-- ── JUGADORES WEB REGISTRADOS ───────────────────────────────── -->
+<div class="section-title">Apostadores registrados</div>
+<div class="card" style="padding:0;overflow:hidden">
+  <table>
+    <thead><tr><th>Nombre</th><th>Usuario</th><th>Teléfono</th><th>Email</th><th>Saldo</th><th>Desde</th><th></th></tr></thead>
+    <tbody>
+      {% for p in players %}
+      <tr>
+        <td style="font-weight:500">{{ p['full_name'] }}</td>
+        <td style="color:var(--text2)">@{{ p['username'] }}</td>
+        <td>{{ p['phone'] }}</td>
+        <td style="font-size:12px;color:var(--text2)">{{ p['email'] or '—' }}</td>
+        <td style="color:var(--green);font-weight:500">${{ "%.0f"|format(p['balance']) }}</td>
+        <td style="font-size:11px;color:var(--text3)">{{ p['created_at'][:10] }}</td>
+        <td><a href="{{ url_for('view_player', uid=p['id']) }}" class="btn btn-sm">Ver perfil</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}BetSport{% endblock %}</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f1117;--bg2:#1a1d27;--bg3:#22263a;
+  --border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.18);
+  --text:#f0f0f0;--text2:#9ca3af;--text3:#6b7280;
+  --blue:#3b82f6;--blue-l:#93c5fd;--blue-bg:rgba(59,130,246,0.13);
+  --green:#22c55e;--green-bg:rgba(34,197,94,0.12);
+  --red:#ef4444;--red-bg:rgba(239,68,68,0.12);
+  --amber:#f59e0b;--amber-bg:rgba(245,158,11,0.12);
+  --r:10px;--rl:14px;
+}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
+a{color:var(--blue-l);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* NAV */
+nav{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between;height:56px}
+.logo{font-size:20px;font-weight:700;color:var(--text)}
+.logo span{color:var(--blue)}
+.nav-links{display:flex;align-items:center;gap:8px}
+.nav-links a{color:var(--text2);font-size:13px;padding:6px 12px;border-radius:7px;transition:all .15s}
+.nav-links a:hover{background:var(--bg3);color:var(--text);text-decoration:none}
+.nav-links .btn-logout{border:1px solid var(--border2);color:var(--text3)}
+
+/* CONTENEDOR */
+.wrap{max-width:1100px;margin:0 auto;padding:28px 16px}
+
+/* FLASHES */
+.flash-list{list-style:none;margin-bottom:20px}
+.flash-list li{padding:10px 16px;border-radius:var(--r);font-size:13px;margin-bottom:8px;border:1px solid}
+.flash-list .success{background:var(--green-bg);border-color:rgba(34,197,94,.3);color:#4ade80}
+.flash-list .error{background:var(--red-bg);border-color:rgba(239,68,68,.3);color:#f87171}
+.flash-list .info{background:var(--blue-bg);border-color:rgba(59,130,246,.3);color:var(--blue-l)}
+
+/* CARDS */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);padding:20px 22px;margin-bottom:16px}
+.card-title{font-size:15px;font-weight:600;margin-bottom:14px;color:var(--text)}
+.section-title{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:24px 0 12px}
+
+/* FORMS */
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:12px;color:var(--text2);margin-bottom:5px}
+input,select{width:100%;padding:9px 13px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:14px;outline:none}
+input:focus,select:focus{border-color:var(--blue)}
+input::placeholder{color:var(--text3)}
+
+/* BOTONES */
+.btn{display:inline-block;padding:8px 18px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--text2);transition:all .15s}
+.btn:hover{background:var(--bg3);color:var(--text)}
+.btn-primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn-primary:hover{opacity:.85}
+.btn-danger{border-color:var(--red);color:var(--red)}
+.btn-danger:hover{background:var(--red-bg)}
+.btn-success{border-color:var(--green);color:var(--green)}
+.btn-success:hover{background:var(--green-bg)}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn-full{width:100%;text-align:center}
+
+/* BADGES */
+.badge{display:inline-block;font-size:11px;padding:3px 9px;border-radius:20px;font-weight:500}
+.badge-open{background:var(--green-bg);color:var(--green)}
+.badge-closed{background:var(--amber-bg);color:var(--amber)}
+.badge-finished{background:var(--bg3);color:var(--text3)}
+.badge-pending{background:var(--amber-bg);color:var(--amber)}
+.badge-approved{background:var(--green-bg);color:var(--green)}
+.badge-rejected{background:var(--red-bg);color:var(--red)}
+.badge-won{background:var(--green-bg);color:var(--green)}
+.badge-lost{background:var(--red-bg);color:var(--red)}
+.badge-admin{background:var(--blue-bg);color:var(--blue-l)}
+
+/* TABLAS */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:8px 10px;color:var(--text3);border-bottom:1px solid var(--border);font-weight:500}
+td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+
+/* STAT CARDS */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px}
+.stat-card{background:var(--bg3);border-radius:var(--r);padding:14px 16px}
+.stat-card .slabel{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.stat-card .sval{font-size:22px;font-weight:600}
+.sval.green{color:var(--green)}
+.sval.blue{color:var(--blue-l)}
+.sval.amber{color:var(--amber)}
+
+/* GRID */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:700px){.grid2{grid-template-columns:1fr}}
+
+/* ODDS */
+.odds-grid{display:grid;gap:8px;margin-top:12px}
+.odds-grid.g3{grid-template-columns:repeat(3,1fr)}
+.odds-grid.g2{grid-template-columns:repeat(2,1fr)}
+.odd-card{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 8px;text-align:center}
+.odd-card.blocked{opacity:.4;pointer-events:none;border-color:var(--red)}
+.odd-key{font-size:11px;color:var(--text2);margin-bottom:3px}
+.odd-val{font-size:18px;font-weight:600}
+.odd-val.blocked{font-size:12px;color:var(--red)}
+
+/* MODAL-like inline form */
+.inline-form{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.inline-form input{flex:1;min-width:120px}
+</style>
+{% block head %}{% endblock %}
+</head>
+<body>
+{% if session.user_id %}
+<nav>
+  <div class="logo">Bet<span>Sport</span></div>
+  <div class="nav-links">
+    {% if session.role == 'admin' %}
+      <a href="{{ url_for('admin_panel') }}">Panel Admin</a>
+    {% else %}
+      <a href="{{ url_for('dashboard') }}">Eventos</a>
+      <a href="{{ url_for('profile') }}">Mi Perfil</a>
+    {% endif %}
+    <span style="color:var(--text3);font-size:12px;padding:0 4px">{{ session.username }}</span>
+    <a href="{{ url_for('logout') }}" class="btn-logout">Salir</a>
+  </div>
+</nav>
+{% endif %}
+
+<div class="wrap">
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <ul class="flash-list">
+    {% for cat, msg in messages %}
+    <li class="{{ cat }}">{{ msg }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+{% endwith %}
+
+{% block content %}{% endblock %}
+</div>
+</body>
+</html>
