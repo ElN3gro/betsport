@@ -593,12 +593,19 @@ def _do_approve_bet(db, brid):
         "SELECT * FROM event_odds WHERE event_id=?", (br["event_id"],)
     ).fetchall()}
 
-    # Compromisos (potenciales a pagar) y pools por opción incluyendo esta apuesta
-    compromisos = {}
+    # ── Validación anti-pérdida ────────────────────────────────────────────────
+    # Para cada posible opción ganadora, verificamos que el pool del lado
+    # contrario + house_budget alcance para cubrir las ganancias netas prometidas.
+    # La ganancia neta de un apostador = potential - amount (el amount lo recupera
+    # en efectivo — solo la ganancia neta se acredita en saldo digital).
+    # ────────────────────────────────────────────────────────────────────────────
+
+    # Ganancias netas ya comprometidas por opción (apuestas ya aprobadas)
+    ganancias_por_opcion = {}
     pool_por_opcion = {}
     for okey in all_odds:
-        compromisos[okey] = db.execute(
-            "SELECT COALESCE(SUM(potential),0) as t FROM bets WHERE event_id=? AND option_key=? AND result='pending'",
+        ganancias_por_opcion[okey] = db.execute(
+            "SELECT COALESCE(SUM(potential-amount),0) as t FROM bets WHERE event_id=? AND option_key=? AND result='pending'",
             (br["event_id"], okey)
         ).fetchone()["t"]
         pool_por_opcion[okey] = db.execute(
@@ -606,30 +613,33 @@ def _do_approve_bet(db, brid):
             (br["event_id"], okey)
         ).fetchone()["t"]
 
-    compromisos[br["option_key"]]    = compromisos.get(br["option_key"], 0) + potential
-    pool_por_opcion[br["option_key"]] = pool_por_opcion.get(br["option_key"], 0) + amount
-    total_pool = sum(pool_por_opcion.values())
+    # Incluir la apuesta nueva que estamos evaluando
+    okey_new = br["option_key"]
+    ganancia_nueva = round(potential - amount, 2)
+    ganancias_por_opcion[okey_new] = ganancias_por_opcion.get(okey_new, 0) + ganancia_nueva
+    pool_por_opcion[okey_new]       = pool_por_opcion.get(okey_new, 0) + amount
 
+    # Verificar el peor escenario posible (la opción con más ganancias comprometidas)
     peor_deficit = 0.0
     peor_label   = None
     for okey, orow in all_odds.items():
-        losing_pool_if_wins = total_pool - pool_por_opcion[okey]
-        # La casa puede pagar: pool_perdedor neto (tras cortes) + house_budget
-        # Pero el ganador cobra: sus compromisos (amount × odd)
-        # Neto para la casa: losing_pool_if_wins - compromisos[okey] + losing_pool_if_wins×cuts
-        # = losing_pool_if_wins×(1-cuts) - (compromisos[okey] - pool_por_opcion[okey])
-        # Simplificado: la casa debe tener house_budget para cubrir si
-        # compromisos > losing_pool×(1-cuts) + pool_ganadores
-        ganancia_neta_ganadores = compromisos[okey] - pool_por_opcion[okey]
-        puede_pagar = round(losing_pool_if_wins * (1 - field_cut_pct) + house_budget, 2)
-        deficit = round(ganancia_neta_ganadores - puede_pagar, 2)
+        # Si gana esta opción: los perdedores son todos los demás
+        pool_perdedor = sum(v for k,v in pool_por_opcion.items() if k != okey)
+        # Del pool perdedor se descuenta el % de cancha
+        pool_neto = round(pool_perdedor * (1 - field_cut_pct), 2)
+        # Ganancias netas que hay que pagar a los ganadores de esta opción
+        ganancias_a_pagar = ganancias_por_opcion[okey]
+        # La casa puede complementar con house_budget
+        puede_pagar = round(pool_neto + house_budget, 2)
+        deficit = round(ganancias_a_pagar - puede_pagar, 2)
         if deficit > peor_deficit:
             peor_deficit = deficit
             peor_label   = orow["label"]
 
     if peor_deficit > 0.01:
         return False, (f"Apuesta ${amount:,.0f} rechazada: si gana '{peor_label}', "
-                       f"déficit ${peor_deficit:,.0f}. Sube el presupuesto de la casa.")
+                       f"déficit ${peor_deficit:,.0f} (pool contrario + presupuesto casa insuficiente). "
+                       f"Agrega más presupuesto a la casa o espera apuestas del otro lado.")
 
     # Registrar apuesta
     db.execute("""INSERT INTO bets
@@ -744,40 +754,77 @@ def finish_event(eid):
         all_bets     = db.execute("SELECT * FROM bets WHERE event_id=? AND result='pending'", (eid,)).fetchall()
         winning_bets = [b for b in all_bets if b["option_key"] == winner_key]
         losing_bets  = [b for b in all_bets if b["option_key"] != winner_key]
+
+        # ════════════════════════════════════════════════════════════════════
+        # LÓGICA CORRECTA: los ganadores se pagan con el pool de perdedores.
+        # Si no hay pool perdedor suficiente, la casa cubre el déficit con
+        # house_budget. Si no alcanza tampoco, se paga proporcional.
+        # El monto apostado se devuelve SIEMPRE (está en efectivo con el admin).
+        # Solo la GANANCIA NETA (potential - amount) se acredita en saldo.
+        # ════════════════════════════════════════════════════════════════════
+
         losing_pool  = sum(b["amount"] for b in losing_bets)
+        winning_pool = sum(b["amount"] for b in winning_bets)
 
-        # ── Distribución del pool perdedor ──────────────────────────────
-        # HOUSE_CUT%     → casa
-        # field_cut_pct% → jugadores de cancha ganadores
-        # resto          → ganancia neta de apostadores ganadores
-        # ────────────────────────────────────────────────────────────────
-        # Cada apostador ganador cobra: amount × odd_at_bet
-        # Su ganancia neta = potential - amount → sube al saldo digital
-        # El amount lo recupera en efectivo del admin
-        # ────────────────────────────────────────────────────────────────
-        # Lo que la casa retiene del pool perdedor:
-        #   = losing_pool - sum(ganancia_neta de ganadores) - field_bonus
-        field_bonus = round(losing_pool * ev["field_cut_pct"], 2)
-        total_ganancia_ganadores = sum(round(b["potential"] - b["amount"], 2) for b in winning_bets)
-        house_share = round(losing_pool - total_ganancia_ganadores - field_bonus, 2)
+        # % cancha se saca del pool perdedor
+        field_cut_pct = ev["field_cut_pct"]
+        field_bonus   = round(losing_pool * field_cut_pct, 2)
 
-        if house_share > 0:
-            db.execute("INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
-                (eid, house_share, "profit",
-                 f"Ganancia apuestas: losing ${losing_pool:,.0f} - ganadores ${total_ganancia_ganadores:,.0f} - cancha ${field_bonus:,.0f}",
-                 now()))
-        elif house_share < 0:
-            # La casa pone dinero de su bolsillo (house_budget cubre)
-            db.execute("UPDATE events SET house_budget=house_budget+? WHERE id=?", (house_share, eid))
-            db.execute("INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
-                (eid, house_share, "expense", f"Casa cubrió deficit ${abs(house_share):,.0f}", now()))
+        # Pool disponible para pagar ganancias netas de apostadores ganadores
+        pool_para_ganancias = round(losing_pool - field_bonus, 2)
 
-        # Pagar ganadores: sumar ganancia neta al saldo
-        for b in winning_bets:
-            ganancia = round(b["potential"] - b["amount"], 2)
-            db.execute("UPDATE bets SET result='won', payout=? WHERE id=?", (b["potential"], b["id"]))
-            db.execute("UPDATE users SET balance=balance+? WHERE id=?", (ganancia, b["user_id"]))
-        # Marcar perdedores (saldo no cambia — el efectivo ya lo tiene el admin)
+        # Ganancias netas prometidas a ganadores (lo que excede su propio monto)
+        total_ganancias_prometidas = sum(round(b["potential"] - b["amount"], 2) for b in winning_bets)
+
+        # ¿Alcanza el pool para cubrir las ganancias prometidas?
+        if pool_para_ganancias >= total_ganancias_prometidas:
+            # Caso normal: el pool cubre todo
+            house_profit = round(pool_para_ganancias - total_ganancias_prometidas, 2)
+            if house_profit > 0:
+                db.execute("INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
+                    (eid, house_profit, "profit",
+                     f"Pool perdedor ${losing_pool:,.0f} - ganancias ${total_ganancias_prometidas:,.0f} - cancha ${field_bonus:,.0f}",
+                     now()))
+            for b in winning_bets:
+                ganancia = round(b["potential"] - b["amount"], 2)
+                db.execute("UPDATE bets SET result='won', payout=? WHERE id=?", (b["potential"], b["id"]))
+                db.execute("UPDATE users SET balance=balance+? WHERE id=?", (ganancia, b["user_id"]))
+
+        else:
+            # Pool insuficiente: usar house_budget para cubrir el déficit
+            deficit = round(total_ganancias_prometidas - pool_para_ganancias, 2)
+            house_budget_disponible = ev["house_budget"]
+
+            if house_budget_disponible >= deficit:
+                # house_budget cubre el déficit completo
+                db.execute("UPDATE events SET house_budget=house_budget-? WHERE id=?", (deficit, eid))
+                db.execute("INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
+                    (eid, -deficit, "expense",
+                     f"Casa cubrió déficit ${deficit:,.0f} (pool ${losing_pool:,.0f} insuficiente para ganancias ${total_ganancias_prometidas:,.0f})",
+                     now()))
+                for b in winning_bets:
+                    ganancia = round(b["potential"] - b["amount"], 2)
+                    db.execute("UPDATE bets SET result='won', payout=? WHERE id=?", (b["potential"], b["id"]))
+                    db.execute("UPDATE users SET balance=balance+? WHERE id=?", (ganancia, b["user_id"]))
+            else:
+                # Ni el pool ni house_budget alcanzan: pagar proporcional
+                total_disponible = pool_para_ganancias + house_budget_disponible
+                if house_budget_disponible > 0:
+                    db.execute("UPDATE events SET house_budget=0 WHERE id=?", (eid,))
+                    db.execute("INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
+                        (eid, -house_budget_disponible, "expense",
+                         f"Casa usó todo su presupuesto ${house_budget_disponible:,.0f} — pago proporcional",
+                         now()))
+                for b in winning_bets:
+                    if total_ganancias_prometidas > 0:
+                        ratio   = round((b["potential"] - b["amount"]) / total_ganancias_prometidas, 6)
+                        ganancia = round(total_disponible * ratio, 2)
+                    else:
+                        ganancia = 0
+                    payout = round(b["amount"] + ganancia, 2)
+                    db.execute("UPDATE bets SET result='won', payout=? WHERE id=?", (payout, b["id"]))
+                    db.execute("UPDATE users SET balance=balance+? WHERE id=?", (ganancia, b["user_id"]))
+
         for b in losing_bets:
             db.execute("UPDATE bets SET result='lost' WHERE id=?", (b["id"],))
 
