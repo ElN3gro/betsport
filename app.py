@@ -542,6 +542,12 @@ def approve_bet_request(brid):
         old_odd   = odd_row["odd"]
         potential = round(amount * old_odd, 2)
 
+        # Verificar presupuesto
+        ev2 = db.execute("SELECT * FROM events WHERE id=?", (br["event_id"],)).fetchone()
+        if potential > ev2["house_budget"]:
+            flash(f"Apuesta de ${amount:,.0f} rechazada: ganancia potencial ${potential:,.0f} supera el presupuesto disponible ${ev2['house_budget']:,.0f}. Pide al jugador que baje el monto.","error")
+            return redirect(url_for("admin_panel"))
+
         # Registrar apuesta confirmada
         db.execute("""INSERT INTO bets (user_id,event_id,option_key,option_label,amount,odd_at_bet,potential,result,payout,created_at)
             VALUES (?,?,?,?,?,?,?,'pending',0.0,?)""",
