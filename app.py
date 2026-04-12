@@ -628,13 +628,6 @@ def _do_approve_bet(db, brid):
     locked_odd = br["odd_at_request"] if br["odd_at_request"] > 1.0 else odd_row["odd"]
     potential  = round(amount * locked_odd, 2)
 
-    # Verificar saldo del jugador
-    player = db.execute("SELECT balance FROM users WHERE id=?", (br["user_id"],)).fetchone()
-    if not player or player["balance"] < amount:
-        saldo = player["balance"] if player else 0
-        return False, (f"Saldo insuficiente: el jugador tiene ${saldo:,.0f} y necesita ${amount:,.0f}. "
-                       f"Recárgale saldo primero desde su perfil.")
-
     # Validación: ¿puede la casa cubrir si gana este lado?
     house_budget  = ev["house_budget"]
     field_cut_pct = ev["field_cut_pct"]
@@ -700,8 +693,7 @@ def _do_approve_bet(db, brid):
     db.execute("UPDATE bet_requests SET status='approved' WHERE id=?", (brid,))
     db.execute("UPDATE event_odds SET total_bet=total_bet+? WHERE id=?", (amount, odd_row["id"]))
     db.execute("UPDATE events SET pool=pool+? WHERE id=?", (amount, br["event_id"]))
-    # Descontar el monto del saldo — el jugador entregó ese efectivo al apostar
-    db.execute("UPDATE users SET balance=balance-? WHERE id=?", (amount, br["user_id"]))
+    # El apostador paga en EFECTIVO — no se descuenta saldo digital
 
     # Ajuste de odds según modo
     if ev["odds_mode"] == "auto":
@@ -838,9 +830,8 @@ def finish_event(eid):
                      f"Pool perdedor ${losing_pool:,.0f} - ganancias ${total_ganancias_prometidas:,.0f} - cancha ${field_bonus:,.0f}",
                      now()))
             for b in winning_bets:
-                ganancia = round(b["potential"] - b["amount"], 2)
                 db.execute("UPDATE bets SET result='won', payout=? WHERE id=?", (b["potential"], b["id"]))
-                db.execute("UPDATE users SET balance=balance+? WHERE id=?", (ganancia, b["user_id"]))
+                db.execute("UPDATE users SET balance=balance+? WHERE id=?", (b["potential"], b["user_id"]))
 
         else:
             # Pool insuficiente: usar house_budget para cubrir el déficit
@@ -855,9 +846,8 @@ def finish_event(eid):
                      f"Casa cubrió déficit ${deficit:,.0f} (pool ${losing_pool:,.0f} insuficiente para ganancias ${total_ganancias_prometidas:,.0f})",
                      now()))
                 for b in winning_bets:
-                    ganancia = round(b["potential"] - b["amount"], 2)
                     db.execute("UPDATE bets SET result='won', payout=? WHERE id=?", (b["potential"], b["id"]))
-                    db.execute("UPDATE users SET balance=balance+? WHERE id=?", (ganancia, b["user_id"]))
+                    db.execute("UPDATE users SET balance=balance+? WHERE id=?", (b["potential"], b["user_id"]))
             else:
                 # Ni el pool ni house_budget alcanzan: pagar proporcional
                 total_disponible = pool_para_ganancias + house_budget_disponible
@@ -875,7 +865,7 @@ def finish_event(eid):
                         ganancia = 0
                     payout = round(b["amount"] + ganancia, 2)
                     db.execute("UPDATE bets SET result='won', payout=? WHERE id=?", (payout, b["id"]))
-                    db.execute("UPDATE users SET balance=balance+? WHERE id=?", (ganancia, b["user_id"]))
+                    db.execute("UPDATE users SET balance=balance+? WHERE id=?", (payout, b["user_id"]))
 
         for b in losing_bets:
             db.execute("UPDATE bets SET result='lost' WHERE id=?", (b["id"],))
