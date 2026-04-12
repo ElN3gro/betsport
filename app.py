@@ -567,18 +567,69 @@ def approve_bet_request(brid):
             flash("Opcion de apuesta no encontrada.","error"); return redirect(url_for("admin_panel"))
 
         amount    = br["amount"]
-        old_odd   = odd_row["odd"]
-        potential = round(amount * old_odd, 2)
+        # Usar el odd del momento en que el jugador solicitó la apuesta
+        locked_odd = br["odd_at_request"] if br["odd_at_request"] > 1.0 else odd_row["odd"]
+        potential  = round(amount * locked_odd, 2)
         ganancia_neta = round(potential - amount, 2)
 
-        # ── Acreditar el monto apostado al saldo del jugador ──────────
-        # El saldo es solo informativo (efectivo físico del jugador).
-        # No se modifica al aprobar apuestas.
+        # ── Validación: la casa debe poder cubrir la ganancia prometida ──
+        # Si el jugador gana, debe recibir: amount × locked_odd
+        # La casa cubre con: pool_perdedor + house_budget
+        # Verificamos el peor caso para cada opción ganadora posible.
+        house_budget  = ev["house_budget"]
+        field_cut_pct = ev["field_cut_pct"]
+        all_odds = {o["option_key"]: o for o in db.execute(
+            "SELECT * FROM event_odds WHERE event_id=?", (br["event_id"],)
+        ).fetchall()}
 
-        # Registrar apuesta confirmada
+        # Compromisos actuales por opción: sum(amount × odd_at_bet) para apuestas confirmadas
+        compromisos = {}
+        for okey in all_odds:
+            compromisos[okey] = db.execute(
+                "SELECT COALESCE(SUM(potential),0) as t FROM bets WHERE event_id=? AND option_key=? AND result='pending'",
+                (br["event_id"], okey)
+            ).fetchone()["t"]
+
+        # Agregar esta apuesta nueva al lado correspondiente
+        compromisos[br["option_key"]] = compromisos.get(br["option_key"], 0) + potential
+
+        # Pool recaudado por opción
+        pool_por_opcion = {}
+        for okey in all_odds:
+            pool_por_opcion[okey] = db.execute(
+                "SELECT COALESCE(SUM(amount),0) as t FROM bets WHERE event_id=? AND option_key=? AND result='pending'",
+                (br["event_id"], okey)
+            ).fetchone()["t"]
+        pool_por_opcion[br["option_key"]] = pool_por_opcion.get(br["option_key"], 0) + amount
+
+        total_pool = sum(pool_por_opcion.values())
+
+        peor_deficit = 0.0
+        peor_label   = None
+        for okey, orow in all_odds.items():
+            # Si gana este lado: hay que pagar compromisos[okey]
+            # Disponible: pool de los perdedores × (1 - cuts) + house_budget
+            losing_pool_if_wins = total_pool - pool_por_opcion[okey]
+            disponible = round(losing_pool_if_wins * (1 - field_cut_pct) + house_budget, 2)
+            deficit = round(compromisos[okey] - disponible, 2)
+            if deficit > peor_deficit:
+                peor_deficit = deficit
+                peor_label   = orow["label"]
+
+        if peor_deficit > 0.01:
+            flash(
+                f"Apuesta rechazada: si gana '{peor_label}', la casa no puede cubrir "
+                f"(déficit ${peor_deficit:,.0f}). Aumenta el presupuesto de la casa.",
+                "error"
+            )
+            return redirect(url_for("admin_panel"))
+
+        # El saldo es solo informativo — no se toca al aprobar apuestas.
+
+        # Registrar apuesta confirmada con el odd bloqueado al momento de solicitar
         db.execute("""INSERT INTO bets (user_id,event_id,option_key,option_label,amount,odd_at_bet,potential,result,payout,created_at)
             VALUES (?,?,?,?,?,?,?,'pending',0.0,?)""",
-            (br["user_id"], br["event_id"], br["option_key"], br["option_label"], amount, old_odd, potential, now()))
+            (br["user_id"], br["event_id"], br["option_key"], br["option_label"], amount, locked_odd, potential, now()))
         db.execute("UPDATE bet_requests SET status='approved' WHERE id=?", (brid,))
         db.execute("UPDATE event_odds SET total_bet=total_bet+? WHERE id=?", (amount, odd_row["id"]))
         # Sumar al pool del evento
@@ -593,7 +644,7 @@ def approve_bet_request(brid):
             boosted = round(min(9.99, o["odd"] + o["odd"] * 0.06 * factor), 2)
             db.execute("UPDATE event_odds SET odd=? WHERE id=?", (boosted, o["id"]))
 
-    flash(f"Apuesta aprobada: ${amount:,.0f} a {old_odd:.2f}x — potencial ${potential:,.0f}.","success")
+    flash(f"Apuesta aprobada: ${amount:,.0f} a {locked_odd:.2f}x — potencial ${potential:,.0f}.","success")
     return redirect(url_for("admin_panel"))
 
 @app.route("/admin/bet_request/<int:brid>/reject", methods=["POST"])
@@ -617,16 +668,13 @@ def approve_cash(rid):
         if t.startswith("entry_"):
             eid = int(t.split("_")[1])
             fee = req["amount"]
-            # 90% del fee → saldo apostable del jugador
-            # 10% del fee → presupuesto de la casa del evento
-            player_share = round(fee * 0.90, 2)
-            house_share  = round(fee - player_share, 2)
+            # La cuota de entrada va íntegra al presupuesto de la casa
+            # No modifica el saldo del jugador (es el costo de acceso al evento)
             db.execute("INSERT OR IGNORE INTO entries (user_id,event_id,paid_at) VALUES (?,?,?)",
                 (req["user_id"], eid, now()))
-            db.execute("UPDATE users SET balance=balance+? WHERE id=?", (player_share, req["user_id"]))
-            db.execute("UPDATE events SET house_budget=house_budget+? WHERE id=?", (house_share, eid))
+            db.execute("UPDATE events SET house_budget=house_budget+? WHERE id=?", (fee, eid))
             db.execute("INSERT INTO house_log (event_id,amount,note,created_at) VALUES (?,?,?,?)",
-                (eid, house_share, f"10% cuota entrada apostador ID {req['user_id']}", now()))
+                (eid, fee, f"Cuota entrada apostador ID {req['user_id']}", now()))
         elif t in ("deposit","manual_adjust"):
             db.execute("UPDATE users SET balance=balance+? WHERE id=?", (req["amount"], req["user_id"]))
         db.execute("UPDATE cash_requests SET status='approved', resolved_at=? WHERE id=?", (now(), rid))
@@ -677,19 +725,30 @@ def finish_event(eid):
         #   resto del losing  → se reparte entre apostadores ganadores
         #   winning_pool      → se devuelve íntegro a apostadores ganadores
         # ════════════════════════════════════════════════════════════════
-        house_share_bets  = round(losing_pool * HOUSE_CUT, 2)
-        field_bonus       = round(losing_pool * ev["field_cut_pct"], 2)
-        prize_apostadores = round(losing_pool - house_share_bets - field_bonus, 2)
+        # Total que deben cobrar los ganadores (ganancia neta solamente,
+        # ya que el monto apostado era efectivo físico del admin)
+        total_ganancia_ganadores = sum(b["potential"] - b["amount"] for b in winning_bets)
+        field_bonus  = round(losing_pool * ev["field_cut_pct"], 2)
+
+        # La casa recibe: todo el pool perdedor − lo que paga a ganadores − field_bonus
+        house_share_bets = round(losing_pool - total_ganancia_ganadores - field_bonus, 2)
 
         if house_share_bets > 0:
             db.execute("INSERT INTO house_log (event_id,amount,note,created_at) VALUES (?,?,?,?)",
-                (eid, house_share_bets, f"Casa {int(HOUSE_CUT*100)}% del pool perdedor", now()))
+                (eid, house_share_bets, f"Casa: pool perdedor ${losing_pool:,.0f} - ganancias ${total_ganancia_ganadores:,.0f} - cancha ${field_bonus:,.0f}", now()))
+        elif house_share_bets < 0:
+            # La casa tuvo que cubrir con house_budget
+            db.execute("UPDATE events SET house_budget=house_budget+? WHERE id=?", (house_share_bets, eid))
+            db.execute("INSERT INTO house_log (event_id,amount,note,created_at) VALUES (?,?,?,?)",
+                (eid, house_share_bets, f"Casa cubrió déficit ${abs(house_share_bets):,.0f}", now()))
 
-        # Ganadores: sumar la ganancia neta proporcional al saldo (informativo)
+        # Ganadores: cobran amount × odd_at_bet (el odd bloqueado al solicitar)
+        # La ganancia neta = potential - amount (ya que el amount es efectivo físico
+        # que el admin tiene, no salió del saldo digital)
+        # El saldo solo sube por la ganancia neta (lo que gana encima de lo apostado)
         for b in winning_bets:
-            share    = (b["amount"] / win_pool_sum) if win_pool_sum > 0 else 0
-            ganancia = round(prize_apostadores * share, 2)
-            payout   = round(b["amount"] + ganancia, 2)  # guardado en historial
+            payout   = b["potential"]   # amount × odd_at_bet
+            ganancia = round(b["potential"] - b["amount"], 2)  # ganancia neta
             db.execute("UPDATE bets SET result='won', payout=? WHERE id=?", (payout, b["id"]))
             db.execute("UPDATE users SET balance=balance+? WHERE id=?", (ganancia, b["user_id"]))
         # Perdedores: solo marcar como perdido, el saldo NO cambia
