@@ -344,16 +344,13 @@ def admin_panel():
             odd_row = db.execute("SELECT odd FROM event_odds WHERE event_id=? AND option_key=?",
                 (br["event_id"], br["option_key"])).fetchone()
             current_odd = odd_row["odd"] if odd_row else 1.0
-            jugador_br  = db.execute("SELECT balance FROM users WHERE id=?", (br["user_id"],)).fetchone()
-            saldo_ok    = jugador_br["balance"] >= br["amount"] if jugador_br else False
-            saldo_actual = jugador_br["balance"] if jugador_br else 0
             pending_bets.append({
                 **dict(br),
                 "current_odd":   current_odd,
                 "ganancia_neta": round(br["amount"] * (current_odd - 1), 2),
-                "aprobable":     saldo_ok,
-                "saldo_ok":      saldo_ok,
-                "disponible":    saldo_actual,
+                "aprobable":     True,
+                "saldo_ok":      True,
+                "disponible":    0,
             })
         edata = []
         for ev in db.execute("SELECT * FROM events ORDER BY created_at DESC").fetchall():
@@ -567,21 +564,11 @@ def approve_bet_request(brid):
         potential = round(amount * old_odd, 2)
         ganancia_neta = round(potential - amount, 2)
 
-        # ── Verificar que el jugador tiene saldo suficiente ────────────
-        # El saldo representa el efectivo físico disponible del jugador.
-        # Se descuenta aquí para reservarlo; si cancela, se devuelve.
-        jugador = db.execute("SELECT balance FROM users WHERE id=?", (br["user_id"],)).fetchone()
-        if jugador["balance"] < amount:
-            flash(
-                f"Apuesta rechazada: el jugador no tiene saldo suficiente "
-                f"(saldo: ${jugador['balance']:,.0f}, apuesta: ${amount:,.0f}).",
-                "error"
-            )
-            db.execute("UPDATE bet_requests SET status='rejected' WHERE id=?", (brid,))
-            return redirect(url_for("admin_panel"))
-
-        # Descontar el monto del balance (reserva el efectivo físico)
-        db.execute("UPDATE users SET balance=balance-? WHERE id=?", (amount, br["user_id"]))
+        # ── Acreditar el monto apostado al saldo del jugador ──────────
+        # El saldo refleja el efectivo físico que el jugador tiene en juego.
+        # Al aprobar, sumamos el monto (el jugador "tiene" ese dinero).
+        # Al finalizar: si pierde, se descuenta; si gana, solo se suma la ganancia.
+        db.execute("UPDATE users SET balance=balance+? WHERE id=?", (amount, br["user_id"]))
 
         # Registrar apuesta confirmada
         db.execute("""INSERT INTO bets (user_id,event_id,option_key,option_label,amount,odd_at_bet,potential,result,payout,created_at)
@@ -693,14 +680,17 @@ def finish_event(eid):
             db.execute("INSERT INTO house_log (event_id,amount,note,created_at) VALUES (?,?,?,?)",
                 (eid, house_share_bets, f"Casa {int(HOUSE_CUT*100)}% del pool perdedor", now()))
 
-        # Ganadores: recuperan su apuesta + parte proporcional del prize
+        # Ganadores: ya tienen el monto en saldo — solo sumar la ganancia neta proporcional
         for b in winning_bets:
-            share  = (b["amount"] / win_pool_sum) if win_pool_sum > 0 else 0
-            payout = round(b["amount"] + prize_apostadores * share, 2)
+            share   = (b["amount"] / win_pool_sum) if win_pool_sum > 0 else 0
+            ganancia = round(prize_apostadores * share, 2)
+            payout  = round(b["amount"] + ganancia, 2)  # total que "tiene" (para el historial)
             db.execute("UPDATE bets SET result='won', payout=? WHERE id=?", (payout, b["id"]))
-            db.execute("UPDATE users SET balance=balance+? WHERE id=?", (payout, b["user_id"]))
+            db.execute("UPDATE users SET balance=balance+? WHERE id=?", (ganancia, b["user_id"]))
+        # Perdedores: descontar su monto del saldo
         for b in losing_bets:
             db.execute("UPDATE bets SET result='lost' WHERE id=?", (b["id"],))
+            db.execute("UPDATE users SET balance=balance-? WHERE id=?", (b["amount"], b["user_id"]))
 
         # ════════════════════════════════════════════════════════════════
         # POOL CANCHA — completamente separado de las apuestas
