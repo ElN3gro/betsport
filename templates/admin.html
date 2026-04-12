@@ -49,10 +49,12 @@
           {% endif %}
         </td>
         <td>
-          {% if br['aprobable'] %}
+          {% if not br['saldo_ok'] %}
+            <span style="color:var(--red);font-size:12px">✗ sin saldo</span>
+          {% elif br['aprobable'] %}
             <span style="color:var(--green);font-size:12px">✓ ${{ "%.0f"|format(br['disponible']) }}</span>
           {% else %}
-            <span style="color:var(--red);font-size:12px">✗ insuf.</span>
+            <span style="color:var(--red);font-size:12px">✗ casa insuf.</span>
           {% endif %}
         </td>
         <td style="font-size:11px;color:var(--text3)">{{ br['created_at'][:16] }}</td>
