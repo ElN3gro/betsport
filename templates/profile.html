@@ -1,105 +1,112 @@
-{% extends 'base.html' %}
-{% block title %}Mi Perfil — BetSport Pro{% endblock %}
-
+{% extends "base.html" %}
+{% block title %}Mi Perfil — BetSport{% endblock %}
 {% block content %}
-<div class="container py-4">
 
-  <h4 class="fw-bold mb-4">👤 Mi Perfil</h4>
-
-  <!-- Stats -->
-  <div class="row g-3 mb-4">
-    <div class="col-6 col-md-3">
-      <div class="stat-card">
-        <div class="stat-label">Saldo actual</div>
-        <div class="stat-value text-success">${{ '%.2f' | format(current_user.balance) }}</div>
-      </div>
-    </div>
-    <div class="col-6 col-md-3">
-      <div class="stat-card">
-        <div class="stat-label">Total apostado</div>
-        <div class="stat-value">${{ '%.2f' | format(total_bet) }}</div>
-      </div>
-    </div>
-    <div class="col-6 col-md-3">
-      <div class="stat-card">
-        <div class="stat-label">Ganancias cobradas</div>
-        <div class="stat-value text-success">${{ '%.2f' | format(total_won) }}</div>
-      </div>
-    </div>
-    <div class="col-6 col-md-3">
-      <div class="stat-card">
-        <div class="stat-label">Pendiente de cobrar</div>
-        <div class="stat-value text-warning">${{ '%.2f' | format(total_pending) }}</div>
-      </div>
-    </div>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+  <div>
+    <div style="font-size:20px;font-weight:600">👤 Mi Perfil</div>
+    <div style="font-size:13px;color:var(--text3)">{{ user['full_name'] }}</div>
   </div>
-
-  <div class="row g-4">
-    <!-- Historial de apuestas -->
-    <div class="col-12 col-lg-7">
-      <div class="card h-100">
-        <div class="card-header">📋 Historial de apuestas</div>
-        <div class="table-responsive" style="max-height:500px; overflow-y:auto;">
-          {% if bets %}
-          <table class="table table-dark table-hover mb-0 align-middle small">
-            <thead class="sticky-top" style="background:#1c2128;">
-              <tr class="text-muted">
-                <th>Evento</th><th>Opción</th><th>Monto</th><th>Mult.</th><th>Potencial</th><th>Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for bet in bets %}
-              <tr>
-                <td>
-                  <a href="{{ url_for('main.event_detail', event_id=bet.event_id) }}"
-                     class="text-decoration-none text-light">
-                    {{ bet.event.team_home[:8] }} vs {{ bet.event.team_away[:8] }}
-                  </a>
-                  <div class="text-muted" style="font-size:.65rem;">{{ bet.created_at.strftime('%d/%m %H:%M') }}</div>
-                </td>
-                <td>{{ bet.market.display_name }}</td>
-                <td>${{ '%.2f' | format(bet.amount) }}</td>
-                <td class="text-warning">{{ '%.3f' | format(bet.multiplier_at_bet) }}x</td>
-                <td class="text-success">${{ '%.2f' | format(bet.potential_win) }}</td>
-                <td><span class="badge bg-{{ bet.status_badge }}">{{ bet.status_label }}</span></td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-          {% else %}
-          <div class="text-center py-5 text-muted">Aún no has realizado apuestas.</div>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-
-    <!-- Movimientos -->
-    <div class="col-12 col-lg-5">
-      <div class="card h-100">
-        <div class="card-header">💳 Últimos movimientos</div>
-        <div style="max-height:500px; overflow-y:auto;">
-          {% if transactions %}
-          <ul class="list-group list-group-flush">
-            {% for txn in transactions %}
-            <li class="list-group-item d-flex justify-content-between align-items-start py-2"
-                style="background:#161b22; border-color:#30363d;">
-              <div>
-                <div class="small fw-semibold">{{ txn.description or txn.type | capitalize }}</div>
-                <div class="text-muted" style="font-size:.7rem;">{{ txn.created_at.strftime('%d/%m/%Y %H:%M') }}</div>
-              </div>
-              <span class="fw-bold {% if txn.amount > 0 %}text-success{% else %}text-danger{% endif %} ms-2">
-                {% if txn.amount > 0 %}+{% endif %}${{ '%.2f' | format(txn.amount | abs) }}
-              </span>
-            </li>
-            {% endfor %}
-          </ul>
-          {% else %}
-          <div class="text-center py-5 text-muted small">Sin movimientos aún.</div>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-  </div>
-
 </div>
+
+<!-- Stats -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="slabel">Saldo actual</div>
+    <div class="sval green">${{ "%.0f"|format(user['balance']) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="slabel">Total apostado</div>
+    <div class="sval blue">${{ "%.0f"|format(stats.total_bet) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="slabel">Ganancias cobradas</div>
+    <div class="sval green">${{ "%.0f"|format(stats.total_won) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="slabel">Apuestas ganadas</div>
+    <div class="sval green">{{ stats.bets_won }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="slabel">Apuestas perdidas</div>
+    <div class="sval" style="color:var(--red)">{{ stats.bets_lost }}</div>
+  </div>
+</div>
+
+<!-- Historial de apuestas confirmadas -->
+<div class="section-title">📋 Historial de apuestas confirmadas</div>
+{% if bets %}
+<div class="card" style="padding:0;overflow:hidden">
+  <table>
+    <thead>
+      <tr>
+        <th>Partido</th>
+        <th>Opción</th>
+        <th>Apuesta</th>
+        <th>Cuota</th>
+        <th>Potencial</th>
+        <th>Resultado</th>
+        <th>Cobro</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for b in bets %}
+      <tr>
+        <td>
+          <div style="font-size:11px;color:var(--text3)">{{ '⚽' if b['sport']=='futbol' else '🏀' }} {{ b['league'] }}</div>
+          <div style="font-size:13px">{{ b['home'] }} vs {{ b['away'] }}</div>
+          <div style="font-size:10px;color:var(--text3)">{{ b['created_at'][:16] }}</div>
+        </td>
+        <td>{{ b['option_label'] }}</td>
+        <td>${{ "%.0f"|format(b['amount']) }}</td>
+        <td style="color:var(--amber)">{{ "%.2f"|format(b['odd_at_bet']) }}x</td>
+        <td style="color:var(--blue-l)">${{ "%.0f"|format(b['potential']) }}</td>
+        <td><span class="badge badge-{{ b['result'] }}">{{ b['result'] }}</span></td>
+        <td>
+          {% if b['result'] == 'won' %}
+            <span style="color:var(--green);font-weight:600">${{ "%.0f"|format(b['payout']) }}</span>
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card" style="text-align:center;padding:32px;color:var(--text3)">
+  Aún no tienes apuestas confirmadas.
+</div>
+{% endif %}
+
+<!-- Solicitudes de apuesta -->
+{% if bet_reqs %}
+<div class="section-title">⏳ Mis solicitudes de apuesta</div>
+<div class="card" style="padding:0;overflow:hidden">
+  <table>
+    <thead>
+      <tr>
+        <th>Partido</th>
+        <th>Opción</th>
+        <th>Monto</th>
+        <th>Cuota al solicitar</th>
+        <th>Estado</th>
+        <th>Fecha</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for br in bet_reqs %}
+      <tr>
+        <td style="font-size:13px">{{ br['home'] }} vs {{ br['away'] }}</td>
+        <td>{{ br['option_label'] }}</td>
+        <td>${{ "%.0f"|format(br['amount']) }}</td>
+        <td style="color:var(--amber)">{{ "%.2f"|format(br['odd_at_request']) }}x</td>
+        <td><span class="badge badge-{{ br['status'] }}">{{ br['status'] }}</span></td>
+        <td style="font-size:11px;color:var(--text3)">{{ br['created_at'][:16] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
 {% endblock %}

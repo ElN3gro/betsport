@@ -758,33 +758,49 @@ def finish_event(eid):
 
         # ════════════════════════════════════════════════════════════════
         # POOL CANCHA — completamente separado de las apuestas
-        # Equipo ganador recibe:
+        # Solo si el resultado es "home" o "away" hay un equipo ganador
+        # en cancha. En caso de EMPATE ("draw") nadie gana en cancha.
+        #
+        # Equipo ganador de cancha recibe:
         #   - Sus propias cuotas de entrada (recuperan lo que pagaron)
         #   - El 100% de las cuotas del equipo perdedor
         #   - El field_bonus del pool de apuestas (% extra por ganar)
+        #
+        # En EMPATE: todas las cuotas de cancha + el field_bonus → casa
         # ════════════════════════════════════════════════════════════════
         fp_home = db.execute("SELECT * FROM field_players WHERE event_id=? AND team_key='home'", (eid,)).fetchall()
         fp_away = db.execute("SELECT * FROM field_players WHERE event_id=? AND team_key='away'", (eid,)).fetchall()
-        winner_fp = fp_home if winner_key == "home" else fp_away
-        loser_fp  = fp_away if winner_key == "home" else fp_home
 
-        total_winner_entry = sum(p["entry_paid"] for p in winner_fp)
-        total_loser_entry  = sum(p["entry_paid"] for p in loser_fp)
-        n_winners_fp = len(winner_fp)
+        total_home_entry  = sum(p["entry_paid"] for p in fp_home)
+        total_away_entry  = sum(p["entry_paid"] for p in fp_away)
+        total_field_entry = total_home_entry + total_away_entry
 
-        if n_winners_fp > 0:
-            # Fondo total para repartir entre jugadores ganadores:
-            # cuotas propias + cuotas del equipo perdedor + bono de apuestas
-            fondo_cancha = total_winner_entry + total_loser_entry + field_bonus
-            per_player   = round(fondo_cancha / n_winners_fp, 2)
-            for p in winner_fp:
-                db.execute("UPDATE field_players SET payout=? WHERE id=?", (per_player, p["id"]))
-        else:
-            # Sin jugadores ganadores de cancha: las cuotas perdedoras y el bono van a la casa
-            extra = total_loser_entry + field_bonus
+        if winner_key == "draw":
+            # EMPATE: ningún equipo de cancha gana. Todo va a la casa.
+            extra = total_field_entry + field_bonus
             if extra > 0:
                 db.execute("INSERT INTO house_log (event_id,amount,note,created_at) VALUES (?,?,?,?)",
-                    (eid, extra, "Sin jugadores cancha ganadores — cuotas y bono van a casa", now()))
+                    (eid, extra, "Empate: cuotas cancha + bono van a casa", now()))
+        else:
+            winner_fp = fp_home if winner_key == "home" else fp_away
+            loser_fp  = fp_away if winner_key == "home" else fp_home
+            total_winner_entry = sum(p["entry_paid"] for p in winner_fp)
+            total_loser_entry  = sum(p["entry_paid"] for p in loser_fp)
+            n_winners_fp = len(winner_fp)
+
+            if n_winners_fp > 0:
+                # Fondo total para repartir entre jugadores ganadores:
+                # cuotas propias + cuotas del equipo perdedor + bono de apuestas
+                fondo_cancha = total_winner_entry + total_loser_entry + field_bonus
+                per_player   = round(fondo_cancha / n_winners_fp, 2)
+                for p in winner_fp:
+                    db.execute("UPDATE field_players SET payout=? WHERE id=?", (per_player, p["id"]))
+            else:
+                # Sin jugadores ganadores de cancha: las cuotas perdedoras y el bono van a la casa
+                extra = total_loser_entry + field_bonus
+                if extra > 0:
+                    db.execute("INSERT INTO house_log (event_id,amount,note,created_at) VALUES (?,?,?,?)",
+                        (eid, extra, "Sin jugadores cancha ganadores — cuotas y bono van a casa", now()))
 
         # Cancelar solicitudes de apuesta pendientes que no se procesaron
         db.execute("UPDATE bet_requests SET status='cancelled' WHERE event_id=? AND status='pending'", (eid,))
@@ -809,14 +825,22 @@ def view_player(uid):
         bet_reqs = db.execute("""SELECT br.*,e.home,e.away
             FROM bet_requests br JOIN events e ON br.event_id=e.id
             WHERE br.user_id=? ORDER BY br.created_at DESC""", (uid,)).fetchall()
-        stats   = {
-            "total_bet": sum(b["amount"] for b in bets),
-            "total_won": sum(b["payout"] for b in bets if b["result"]=="won"),
-            "bets_won":  sum(1 for b in bets if b["result"]=="won"),
-            "bets_lost": sum(1 for b in bets if b["result"]=="lost"),
-        }
+        entry_event_ids = {e["event_id"] for e in entries}
+        all_active = db.execute(
+            "SELECT * FROM events WHERE status IN ('open','closed') ORDER BY created_at DESC"
+        ).fetchall()
+        available_events = [ev for ev in all_active if ev["id"] not in entry_event_ids]
+
+        class Stats:
+            pass
+        stats = Stats()
+        stats.total_bet = sum(b["amount"] for b in bets)
+        stats.total_won = sum(b["payout"] for b in bets if b["result"]=="won")
+        stats.bets_won  = sum(1 for b in bets if b["result"]=="won")
+        stats.bets_lost = sum(1 for b in bets if b["result"]=="lost")
+
     return render_template("player_profile.html", user=user, bets=bets, entries=entries,
-        reqs=reqs, bet_reqs=bet_reqs, stats=stats)
+        reqs=reqs, bet_reqs=bet_reqs, stats=stats, available_events=available_events)
 
 @app.route("/admin/player/<int:uid>/adjust", methods=["POST"])
 @login_required
