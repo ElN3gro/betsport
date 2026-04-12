@@ -328,13 +328,41 @@ def admin_panel():
         pending_entries = db.execute("""SELECT cr.*,u.username,u.full_name,u.phone
             FROM cash_requests cr JOIN users u ON cr.user_id=u.id
             WHERE cr.status='pending' ORDER BY cr.created_at""").fetchall()
-        # Solicitudes de apuesta pendientes
-        pending_bets = db.execute("""SELECT br.*,u.username,u.full_name,u.phone,
-            e.home,e.away,e.league,e.sport
+        # Solicitudes de apuesta pendientes — con disponible calculado
+        raw_pending = db.execute("""SELECT br.*,u.username,u.full_name,u.phone,
+            e.home,e.away,e.league,e.sport,e.field_cut_pct
             FROM bet_requests br
             JOIN users u ON br.user_id=u.id
             JOIN events e ON br.event_id=e.id
             WHERE br.status='pending' ORDER BY br.created_at""").fetchall()
+
+        pending_bets = []
+        for br in raw_pending:
+            pool_contrario = db.execute("""
+                SELECT COALESCE(SUM(eo.total_bet),0) as t FROM event_odds eo
+                WHERE eo.event_id=? AND eo.option_key!=?
+            """, (br["event_id"], br["option_key"])).fetchone()["t"]
+            compromisos = db.execute("""
+                SELECT COALESCE(SUM(b.potential-b.amount),0) as t FROM bets b
+                WHERE b.event_id=? AND b.option_key!=? AND b.result='pending'
+            """, (br["event_id"], br["option_key"])).fetchone()["t"]
+            field_contrario = db.execute("""
+                SELECT COALESCE(SUM(fp.entry_paid),0) as t FROM field_players fp
+                WHERE fp.event_id=? AND fp.team_key!=?
+            """, (br["event_id"], br["option_key"])).fetchone()["t"]
+            cuts = br["field_cut_pct"] + HOUSE_CUT
+            disponible = round(pool_contrario * (1 - cuts) - compromisos - field_contrario, 2)
+            odd_row = db.execute("SELECT odd FROM event_odds WHERE event_id=? AND option_key=?",
+                (br["event_id"], br["option_key"])).fetchone()
+            current_odd = odd_row["odd"] if odd_row else 1.0
+            ganancia_neta = round(br["amount"] * current_odd - br["amount"], 2)
+            pending_bets.append({
+                **dict(br),
+                "disponible": max(0, disponible),
+                "ganancia_neta": ganancia_neta,
+                "aprobable": ganancia_neta <= disponible,
+                "current_odd": current_odd,
+            })
         edata = []
         for ev in db.execute("SELECT * FROM events ORDER BY created_at DESC").fetchall():
             odds  = db.execute("SELECT * FROM event_odds WHERE event_id=?", (ev["id"],)).fetchall()
@@ -349,23 +377,11 @@ def admin_panel():
                 "total_field_home": total_field_home,
                 "total_field_away": total_field_away,
             })
-        # 1) Dinero ganado definitivamente por la casa (eventos finalizados)
-        house_earned = db.execute("SELECT COALESCE(SUM(amount),0) as t FROM house_log").fetchone()["t"]
-        # 2) Dinero en apuestas activas (pendiente, puede ser pagado a jugadores)
-        active_bets_total = db.execute("""
-            SELECT COALESCE(SUM(b.amount),0) as t FROM bets b
-            JOIN events e ON b.event_id=e.id
-            WHERE e.status != 'finished' AND b.result='pending'
-        """).fetchone()["t"]
-        # 3) Total general (casa + en juego)
-        grand_total = house_earned + active_bets_total
+        house_total = db.execute("SELECT COALESCE(SUM(amount),0) as t FROM house_log").fetchone()["t"]
     return render_template("admin.html",
         tokens=tokens, players=players,
         pending_entries=pending_entries, pending_bets=pending_bets,
-        edata=edata,
-        house_earned=house_earned,
-        active_bets_total=active_bets_total,
-        grand_total=grand_total)
+        edata=edata, house_total=house_total)
 
 # ── ADMIN: TOKENS ──────────────────────────────────────────────────────────────
 
@@ -398,8 +414,8 @@ def create_event():
     home           = f["home"].strip()
     away           = f["away"].strip()
     league         = f["league"].strip()
-    house_budget   = float(f.get("house_budget", 0) or 0)
-    field_cut_pct  = float(f.get("field_cut_pct", 7) or 7) / 100.0  # viene como % entero (7 -> 0.07)
+    entry_fee      = float(f.get("entry_fee", 0))
+    field_cut_pct  = float(f.get("field_cut_pct", FIELD_CUT))
 
     if sport == "futbol":
         odd_home = float(f.get("odd_home", 2.20))
@@ -411,7 +427,7 @@ def create_event():
 
     with get_db() as db:
         cur = db.execute("""INSERT INTO events (sport,home,away,league,entry_fee,house_budget,pool,status,field_cut_pct,created_at)
-            VALUES (?,?,?,?,?,?,0,'open',?,?)""", (sport,home,away,league,0,house_budget,field_cut_pct,now()))
+            VALUES (?,?,?,?,?,0,0,'open',?,?)""", (sport,home,away,league,entry_fee,field_cut_pct,now()))
         eid = cur.lastrowid
 
         if sport == "futbol":
@@ -554,10 +570,53 @@ def approve_bet_request(brid):
         old_odd   = odd_row["odd"]
         potential = round(amount * old_odd, 2)
 
-        # Verificar presupuesto
-        ev2 = db.execute("SELECT * FROM events WHERE id=?", (br["event_id"],)).fetchone()
-        if potential > ev2["house_budget"]:
-            flash(f"Apuesta de ${amount:,.0f} rechazada: ganancia potencial ${potential:,.0f} supera el presupuesto disponible ${ev2['house_budget']:,.0f}. Pide al jugador que baje el monto.","error")
+        # ── Verificación anti-pérdida ──────────────────────────────────────
+        # Los ganadores se pagan con el pool de los perdedores.
+        # La ganancia neta del apostador (potential - amount) no puede superar
+        # lo que han apostado todos en opciones CONTRARIAS, menos lo que ya
+        # se debe pagar a los actuales ganadores de esas opciones contrarias,
+        # menos el % reservado para cancha y casa.
+        #
+        # Pool contrario = suma de apuestas en otras opciones
+        # Compromisos actuales = suma de (potential - amount) de apuestas ganadoras ya registradas
+        # en esas opciones contrarias (es decir, apuestas que YA ganaron si este lado pierde)
+        # Disponible = pool_contrario * (1 - house_cut - field_cut) - compromisos_actuales
+
+        pool_contrario = db.execute("""
+            SELECT COALESCE(SUM(eo.total_bet), 0) as t
+            FROM event_odds eo
+            WHERE eo.event_id=? AND eo.option_key != ?
+        """, (br["event_id"], br["option_key"])).fetchone()["t"]
+
+        # Compromisos ya adquiridos: ganancias netas prometidas a apostadores
+        # que apostaron en opciones CONTRARIAS (ellos ganan si este lado pierde)
+        compromisos = db.execute("""
+            SELECT COALESCE(SUM(b.potential - b.amount), 0) as t
+            FROM bets b
+            WHERE b.event_id=? AND b.option_key != ? AND b.result='pending'
+        """, (br["event_id"], br["option_key"])).fetchone()["t"]
+
+        # Cuotas de jugadores de cancha del equipo contrario (ellos también
+        # se pagan del pool perdedor si gana el otro lado)
+        field_contrario = db.execute("""
+            SELECT COALESCE(SUM(fp.entry_paid), 0) as t
+            FROM field_players fp
+            WHERE fp.event_id=? AND fp.team_key != ?
+        """, (br["event_id"], br["option_key"])).fetchone()["t"]
+
+        # Lo que queda disponible del pool contrario para cubrir nuevas apuestas
+        cuts = ev["field_cut_pct"] + HOUSE_CUT
+        disponible = round(pool_contrario * (1 - cuts) - compromisos - field_contrario, 2)
+
+        ganancia_neta = round(potential - amount, 2)
+
+        if ganancia_neta > disponible:
+            flash(
+                f"Apuesta rechazada: la ganancia neta del apostador (${ganancia_neta:,.0f}) "
+                f"supera lo disponible en el pool contrario (${max(0, disponible):,.0f}). "
+                f"Pídele que baje el monto o espera más apuestas del otro lado.",
+                "error"
+            )
             return redirect(url_for("admin_panel"))
 
         # Registrar apuesta confirmada
@@ -638,49 +697,63 @@ def finish_event(eid):
         all_bets     = db.execute("SELECT * FROM bets WHERE event_id=? AND result='pending'", (eid,)).fetchall()
         winning_bets = [b for b in all_bets if b["option_key"] == winner_key]
         losing_bets  = [b for b in all_bets if b["option_key"] != winner_key]
-        losing_pool  = sum(b["amount"] for b in losing_bets)
-        win_pool_sum = sum(b["amount"] for b in winning_bets)
+        losing_pool  = sum(b["amount"] for b in losing_bets)   # dinero de los que pierden
+        win_pool_sum = sum(b["amount"] for b in winning_bets)  # dinero de los que ganan
 
-        house_share = round(losing_pool * HOUSE_CUT, 2)
-        field_share = round(losing_pool * ev["field_cut_pct"], 2)
-        prize_pool  = losing_pool - house_share - field_share
+        # ── JUGADORES DE CANCHA ──
+        fp_home = db.execute("SELECT * FROM field_players WHERE event_id=? AND team_key='home'", (eid,)).fetchall()
+        fp_away = db.execute("SELECT * FROM field_players WHERE event_id=? AND team_key='away'", (eid,)).fetchall()
+        winner_fp = fp_home if winner_key == "home" else fp_away
+        loser_fp  = fp_away if winner_key == "home" else fp_home
+        total_winner_entry = sum(p["entry_paid"] for p in winner_fp)
+        total_loser_entry  = sum(p["entry_paid"] for p in loser_fp)
+        n_winners_fp = len(winner_fp)
+
+        # ── DISTRIBUCIÓN DEL POOL TOTAL ──────────────────────────────────────
+        # Todo el dinero en juego = apuestas perdedoras + cuotas de cancha perdedoras
+        # Los ganadores (apostadores y cancha) se pagan CON ese dinero.
+        # La casa nunca pone dinero: solo se lleva su % de lo recaudado.
+        #
+        # Fórmula:
+        #   pool_total       = losing_pool + total_loser_entry
+        #   casa             = pool_total * HOUSE_CUT
+        #   campo_ganador    = pool_total * field_cut_pct  (solo si hay jugadores ganadores)
+        #   prize_apostadores = pool_total - casa - campo_ganador
+        #
+        # Apostadores ganadores reparten prize_apostadores proporcionalmente
+        # a lo que apostaron, MÁS recuperan su propio monto.
+        # Jugadores de cancha ganadores se reparten campo_ganador + sus propias cuotas.
+
+        pool_total = losing_pool + total_loser_entry
+
+        house_share = round(pool_total * HOUSE_CUT, 2)
+        field_share = round(pool_total * ev["field_cut_pct"], 2) if n_winners_fp > 0 else 0
+        # Si no hay jugadores ganadores de cancha, ese % también va a la casa
+        if n_winners_fp == 0 and pool_total * ev["field_cut_pct"] > 0:
+            house_share += round(pool_total * ev["field_cut_pct"], 2)
+
+        prize_apostadores = pool_total - house_share - field_share
 
         if house_share > 0:
             db.execute("INSERT INTO house_log (event_id,amount,note,created_at) VALUES (?,?,?,?)",
-                (eid, house_share, f"{int(HOUSE_CUT*100)}% pool apuestas perdedoras (casa)", now()))
+                (eid, house_share, f"Casa {int(HOUSE_CUT*100)}% + cancha {int(ev['field_cut_pct']*100)}% del pool total", now()))
 
-        # Pagar a apostadores ganadores
+        # Pagar a apostadores ganadores (reciben su monto + parte del prize_apostadores)
         for b in winning_bets:
             share  = (b["amount"] / win_pool_sum) if win_pool_sum > 0 else 0
-            payout = round(b["amount"] + prize_pool * share, 2)
+            payout = round(b["amount"] + prize_apostadores * share, 2)
             db.execute("UPDATE bets SET result='won', payout=? WHERE id=?", (payout, b["id"]))
             db.execute("UPDATE users SET balance=balance+? WHERE id=?", (payout, b["user_id"]))
         for b in losing_bets:
             db.execute("UPDATE bets SET result='lost' WHERE id=?", (b["id"],))
 
-        # ── JUGADORES DE CANCHA ──
-        # El equipo ganador se lleva: cuotas del equipo perdedor + % de apuestas
-        fp_home = db.execute("SELECT * FROM field_players WHERE event_id=? AND team_key='home'", (eid,)).fetchall()
-        fp_away = db.execute("SELECT * FROM field_players WHERE event_id=? AND team_key='away'", (eid,)).fetchall()
-
-        winner_fp = fp_home if winner_key == "home" else fp_away
-        loser_fp  = fp_away if winner_key == "home" else fp_home
-
-        total_loser_entry = sum(p["entry_paid"] for p in loser_fp)
-        n_winners = len(winner_fp)
-
-        if n_winners > 0:
-            # Cada jugador ganador recibe: su cuota devuelta + parte igual del fondo perdedor + parte del % de apuestas
-            per_player_entry   = round(total_loser_entry / n_winners, 2)
-            per_player_bet_cut = round(field_share / n_winners, 2) if field_share > 0 else 0
+        # Pagar a jugadores de cancha ganadores
+        if n_winners_fp > 0:
+            per_player_field = round(field_share / n_winners_fp, 2)
             for p in winner_fp:
-                total_payout = round(p["entry_paid"] + per_player_entry + per_player_bet_cut, 2)
+                # Recuperan su cuota + parte del campo_ganador
+                total_payout = round(p["entry_paid"] + per_player_field, 2)
                 db.execute("UPDATE field_players SET payout=? WHERE id=?", (total_payout, p["id"]))
-        else:
-            # No hay jugadores ganadores, el fondo de cancha va a la casa
-            if total_loser_entry + field_share > 0:
-                db.execute("INSERT INTO house_log (event_id,amount,note,created_at) VALUES (?,?,?,?)",
-                    (eid, total_loser_entry + field_share, "Sin jugadores cancha ganadores (va a casa)", now()))
 
         # Cancelar solicitudes de apuesta pendientes que no se procesaron
         db.execute("UPDATE bet_requests SET status='cancelled' WHERE event_id=? AND status='pending'", (eid,))
