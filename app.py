@@ -112,6 +112,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             event_id INTEGER NOT NULL,
             amount REAL NOT NULL,
+            type TEXT NOT NULL DEFAULT 'income',
             note TEXT DEFAULT '',
             created_at TEXT NOT NULL
         );
@@ -366,7 +367,7 @@ def admin_panel():
                 "total_field_home": total_field_home,
                 "total_field_away": total_field_away,
             })
-        house_total = db.execute("SELECT COALESCE(SUM(amount),0) as t FROM house_log").fetchone()["t"]
+        house_total = db.execute("SELECT COALESCE(SUM(amount),0) as t FROM house_log WHERE type='profit'").fetchone()["t"]
     return render_template("admin.html",
         tokens=tokens, players=players,
         pending_entries=pending_entries, pending_bets=pending_bets,
@@ -427,8 +428,8 @@ def create_event():
             VALUES (?,?,?,?,?,?,0,'open',?,?)""", (sport,home,away,league,entry_fee,initial_budget,field_cut_pct,now()))
         eid = cur.lastrowid
         if initial_budget > 0:
-            db.execute("INSERT INTO house_log (event_id,amount,note,created_at) VALUES (?,?,?,?)",
-                (eid, initial_budget, "Presupuesto inicial de la casa", now()))
+            db.execute("INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
+                (eid, initial_budget, "income", "Presupuesto inicial de la casa", now()))
 
         if sport == "futbol":
             options = [("home","Local",odd_home),("draw","Empate",odd_draw),("away","Visitante",odd_away)]
@@ -529,8 +530,8 @@ def add_field_player(eid):
             (eid, name, team_key, entry_paid, now()))
         # La cuota va al presupuesto de la casa
         db.execute("UPDATE events SET house_budget=house_budget+? WHERE id=?", (entry_paid, eid))
-        db.execute("INSERT INTO house_log (event_id,amount,note,created_at) VALUES (?,?,?,?)",
-            (eid, entry_paid, f"Cuota cancha: {name} ({team_key})", now()))
+        db.execute("INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
+            (eid, entry_paid, "cancha", f"Cuota cancha: {name} ({team_key})", now()))
     flash(f"Jugador '{name}' agregado al equipo {'Local' if team_key=='home' else 'Visitante'}.","success")
     return redirect(url_for("admin_panel"))
 
@@ -674,8 +675,8 @@ def approve_cash(rid):
             db.execute("INSERT OR IGNORE INTO entries (user_id,event_id,paid_at) VALUES (?,?,?)",
                 (req["user_id"], eid, now()))
             db.execute("UPDATE events SET house_budget=house_budget+? WHERE id=?", (fee, eid))
-            db.execute("INSERT INTO house_log (event_id,amount,note,created_at) VALUES (?,?,?,?)",
-                (eid, fee, f"Cuota entrada apostador ID {req['user_id']}", now()))
+            db.execute("INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
+                (eid, fee, "income", f"Cuota entrada apostador ID {req['user_id']}", now()))
         elif t in ("deposit","manual_adjust"):
             db.execute("UPDATE users SET balance=balance+? WHERE id=?", (req["amount"], req["user_id"]))
         db.execute("UPDATE cash_requests SET status='approved', resolved_at=? WHERE id=?", (now(), rid))
@@ -735,13 +736,13 @@ def finish_event(eid):
         house_share_bets = round(losing_pool - total_ganancia_ganadores - field_bonus, 2)
 
         if house_share_bets > 0:
-            db.execute("INSERT INTO house_log (event_id,amount,note,created_at) VALUES (?,?,?,?)",
-                (eid, house_share_bets, f"Casa: pool perdedor ${losing_pool:,.0f} - ganancias ${total_ganancia_ganadores:,.0f} - cancha ${field_bonus:,.0f}", now()))
+            db.execute("INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
+                (eid, house_share_bets, "profit", f"Casa: pool perdedor ${losing_pool:,.0f} - ganancias ${total_ganancia_ganadores:,.0f} - cancha ${field_bonus:,.0f}", now()))
         elif house_share_bets < 0:
             # La casa tuvo que cubrir con house_budget
             db.execute("UPDATE events SET house_budget=house_budget+? WHERE id=?", (house_share_bets, eid))
-            db.execute("INSERT INTO house_log (event_id,amount,note,created_at) VALUES (?,?,?,?)",
-                (eid, house_share_bets, f"Casa cubrió déficit ${abs(house_share_bets):,.0f}", now()))
+            db.execute("INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
+                (eid, house_share_bets, "expense", f"Casa cubrió déficit ${abs(house_share_bets):,.0f}", now()))
 
         # Ganadores: cobran amount × odd_at_bet (el odd bloqueado al solicitar)
         # La ganancia neta = potential - amount (ya que el amount es efectivo físico
@@ -779,8 +780,8 @@ def finish_event(eid):
             # EMPATE: ningún equipo de cancha gana. Todo va a la casa.
             extra = total_field_entry + field_bonus
             if extra > 0:
-                db.execute("INSERT INTO house_log (event_id,amount,note,created_at) VALUES (?,?,?,?)",
-                    (eid, extra, "Empate: cuotas cancha + bono van a casa", now()))
+                db.execute("INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
+                    (eid, extra, "cancha", "Empate: cuotas cancha + bono van a casa", now()))
         else:
             winner_fp = fp_home if winner_key == "home" else fp_away
             loser_fp  = fp_away if winner_key == "home" else fp_home
@@ -799,8 +800,8 @@ def finish_event(eid):
                 # Sin jugadores ganadores de cancha: las cuotas perdedoras y el bono van a la casa
                 extra = total_loser_entry + field_bonus
                 if extra > 0:
-                    db.execute("INSERT INTO house_log (event_id,amount,note,created_at) VALUES (?,?,?,?)",
-                        (eid, extra, "Sin jugadores cancha ganadores — cuotas y bono van a casa", now()))
+                    db.execute("INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
+                        (eid, extra, "cancha", "Sin jugadores cancha ganadores — cuotas y bono van a casa", now()))
 
         # Cancelar solicitudes de apuesta pendientes que no se procesaron
         db.execute("UPDATE bet_requests SET status='cancelled' WHERE event_id=? AND status='pending'", (eid,))
@@ -869,8 +870,8 @@ def adjust_house_budget(eid):
         if not ev:
             flash("Evento no valido o ya finalizado.","error"); return redirect(url_for("admin_panel"))
         db.execute("UPDATE events SET house_budget=MAX(0, house_budget+?) WHERE id=?", (amount, eid))
-        db.execute("INSERT INTO house_log (event_id,amount,note,created_at) VALUES (?,?,?,?)",
-            (eid, amount, note, now()))
+        db.execute("INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
+            (eid, amount, "income", note, now()))
     flash(f"Presupuesto de la casa ajustado ${amount:+,.0f} para el evento.","success")
     return redirect(url_for("admin_panel"))
 
@@ -917,11 +918,15 @@ def reset_data():
 
 with app.app_context():
     init_db()
-    # Migración: agregar odd_at_request a bet_requests si no existe
     with get_db() as db:
-        cols = [r[1] for r in db.execute("PRAGMA table_info(bet_requests)").fetchall()]
-        if "odd_at_request" not in cols:
+        # Migración: odd_at_request en bet_requests
+        cols_br = [r[1] for r in db.execute("PRAGMA table_info(bet_requests)").fetchall()]
+        if "odd_at_request" not in cols_br:
             db.execute("ALTER TABLE bet_requests ADD COLUMN odd_at_request REAL NOT NULL DEFAULT 0.0")
+        # Migración: type en house_log
+        cols_hl = [r[1] for r in db.execute("PRAGMA table_info(house_log)").fetchall()]
+        if "type" not in cols_hl:
+            db.execute("ALTER TABLE house_log ADD COLUMN type TEXT NOT NULL DEFAULT 'income'")
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
