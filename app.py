@@ -586,6 +586,13 @@ def _do_approve_bet(db, brid):
     locked_odd = br["odd_at_request"] if br["odd_at_request"] > 1.0 else odd_row["odd"]
     potential  = round(amount * locked_odd, 2)
 
+    # Verificar saldo del jugador
+    player = db.execute("SELECT balance FROM users WHERE id=?", (br["user_id"],)).fetchone()
+    if not player or player["balance"] < amount:
+        saldo = player["balance"] if player else 0
+        return False, (f"Saldo insuficiente: el jugador tiene ${saldo:,.0f} y necesita ${amount:,.0f}. "
+                       f"Recárgale saldo primero desde su perfil.")
+
     # Validación: ¿puede la casa cubrir si gana este lado?
     house_budget  = ev["house_budget"]
     field_cut_pct = ev["field_cut_pct"]
@@ -641,7 +648,8 @@ def _do_approve_bet(db, brid):
                        f"déficit ${peor_deficit:,.0f} (pool contrario + presupuesto casa insuficiente). "
                        f"Agrega más presupuesto a la casa o espera apuestas del otro lado.")
 
-    # Registrar apuesta
+    # Registrar apuesta y descontar saldo del jugador
+    # (el saldo representa efectivo disponible — al apostar el admin ya lo tiene)
     db.execute("""INSERT INTO bets
         (user_id,event_id,option_key,option_label,amount,odd_at_bet,potential,result,payout,created_at)
         VALUES (?,?,?,?,?,?,?,'pending',0.0,?)""",
@@ -650,6 +658,8 @@ def _do_approve_bet(db, brid):
     db.execute("UPDATE bet_requests SET status='approved' WHERE id=?", (brid,))
     db.execute("UPDATE event_odds SET total_bet=total_bet+? WHERE id=?", (amount, odd_row["id"]))
     db.execute("UPDATE events SET pool=pool+? WHERE id=?", (amount, br["event_id"]))
+    # Descontar el monto del saldo — el jugador entregó ese efectivo al apostar
+    db.execute("UPDATE users SET balance=balance-? WHERE id=?", (amount, br["user_id"]))
 
     # Ajuste de odds según modo
     if ev["odds_mode"] == "auto":
