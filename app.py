@@ -337,19 +337,44 @@ def admin_panel():
             WHERE br.status='pending' ORDER BY br.created_at""").fetchall()
         pending_bets = []
         for br in raw_bets:
-            pool_contrario = db.execute(
-                "SELECT COALESCE(SUM(total_bet),0) as t FROM event_odds WHERE event_id=? AND option_key!=?",
-                (br["event_id"], br["option_key"])
-            ).fetchone()["t"]
-            compromisos = db.execute(
-                "SELECT COALESCE(SUM(potential-amount),0) as t FROM bets WHERE event_id=? AND option_key!=? AND result='pending'",
-                (br["event_id"], br["option_key"])
-            ).fetchone()["t"]
-            disponible = round(pool_contrario * (1 - HOUSE_CUT) - compromisos, 2)
+            all_options = db.execute(
+                "SELECT option_key, label FROM event_odds WHERE event_id=?", (br["event_id"],)
+            ).fetchall()
             odd_row = db.execute("SELECT odd FROM event_odds WHERE event_id=? AND option_key=?",
                 (br["event_id"], br["option_key"])).fetchone()
-            current_odd = odd_row["odd"] if odd_row else 1.0
+            current_odd   = odd_row["odd"] if odd_row else 1.0
             ganancia_neta = round(br["amount"] * current_odd - br["amount"], 2)
+
+            peor_deficit = 0.0
+            for opt in all_options:
+                okey = opt["option_key"]
+                gan_este_lado = db.execute(
+                    "SELECT COALESCE(SUM(potential-amount),0) as t FROM bets WHERE event_id=? AND option_key=? AND result='pending'",
+                    (br["event_id"], okey)
+                ).fetchone()["t"]
+                if okey == br["option_key"]:
+                    gan_este_lado += ganancia_neta
+                pool_contrario = db.execute(
+                    "SELECT COALESCE(SUM(amount),0) as t FROM bets WHERE event_id=? AND option_key!=? AND result='pending'",
+                    (br["event_id"], okey)
+                ).fetchone()["t"]
+                if okey != br["option_key"]:
+                    pool_contrario += br["amount"]
+                deficit = round(gan_este_lado - pool_contrario * (1 - HOUSE_CUT), 2)
+                if deficit > peor_deficit:
+                    peor_deficit = deficit
+
+            # Margen disponible = cuánto más se puede comprometer sin déficit
+            gan_ya = db.execute(
+                "SELECT COALESCE(SUM(potential-amount),0) as t FROM bets WHERE event_id=? AND option_key=? AND result='pending'",
+                (br["event_id"], br["option_key"])
+            ).fetchone()["t"]
+            pool_contrario_actual = db.execute(
+                "SELECT COALESCE(SUM(amount),0) as t FROM bets WHERE event_id=? AND option_key!=? AND result='pending'",
+                (br["event_id"], br["option_key"])
+            ).fetchone()["t"]
+            capacidad = round(pool_contrario_actual * (1 - HOUSE_CUT), 2)
+            disponible = round(capacidad - gan_ya, 2)  # margen de ganancia neta aún aceptable
             pending_bets.append({
                 **dict(br),
                 "disponible": max(0, disponible),
@@ -563,30 +588,81 @@ def approve_bet_request(brid):
         amount    = br["amount"]
         old_odd   = odd_row["odd"]
         potential = round(amount * old_odd, 2)
-        ganancia_neta = round(potential - amount, 2)  # lo que gana de más
+        ganancia_neta = round(potential - amount, 2)
 
-        # ── Verificación: apostadores se pagan entre sí ──────────────────
-        # Pool contrario = todo lo apostado en opciones contrarias
-        pool_contrario = db.execute("""
-            SELECT COALESCE(SUM(total_bet), 0) as t FROM event_odds
-            WHERE event_id=? AND option_key!=?
-        """, (br["event_id"], br["option_key"])).fetchone()["t"]
+        # ── Modelo book balanceado: los apostadores se cubren entre sí ───
+        # Para cada resultado posible, verificamos que lo que pagan los
+        # perdedores (descontando el % de la casa) alcance para pagar
+        # a los ganadores. La casa NUNCA pone dinero de su bolsillo.
+        #
+        # Por cada resultado R:
+        #   cobra_casa(R)  = SUM(apuestas del lado contrario a R) * HOUSE_CUT
+        #   paga_casa(R)   = SUM(ganancia_neta de apuestas en R)
+        #   condición      = paga_casa(R) <= SUM(apuestas contrarias a R) - cobra_casa(R)
+        #
+        # Simplificado:
+        #   paga_casa(R) <= pool_contrario(R) * (1 - HOUSE_CUT)
+        #
+        # Si algún resultado viola esto, la apuesta se rechaza.
 
-        # Ganancias netas ya comprometidas con apostadores del lado contrario
-        # (ellos ganarían si este lado pierde)
-        compromisos = db.execute("""
-            SELECT COALESCE(SUM(potential - amount), 0) as t FROM bets
-            WHERE event_id=? AND option_key!=? AND result='pending'
-        """, (br["event_id"], br["option_key"])).fetchone()["t"]
+        all_options = db.execute(
+            "SELECT option_key, label FROM event_odds WHERE event_id=?", (br["event_id"],)
+        ).fetchall()
 
-        # Del pool contrario, la casa se lleva su % — el resto es para pagar ganancias
-        disponible = round(pool_contrario * (1 - HOUSE_CUT) - compromisos, 2)
+        peor_deficit   = 0.0
+        peor_resultado = None
+        peor_label     = None
 
-        if ganancia_neta > disponible:
+        for opt in all_options:
+            okey  = opt["option_key"]
+            olabel = opt["label"]
+
+            # Ganancias netas que la casa debe pagar si gana este lado
+            gan_este_lado = db.execute("""
+                SELECT COALESCE(SUM(potential - amount), 0) as t
+                FROM bets WHERE event_id=? AND option_key=? AND result='pending'
+            """, (br["event_id"], okey)).fetchone()["t"]
+            if okey == br["option_key"]:
+                gan_este_lado += ganancia_neta  # incluir esta apuesta nueva
+
+            # Lo que entra del lado contrario (perdedores pagan)
+            pool_contrario = db.execute("""
+                SELECT COALESCE(SUM(amount), 0) as t
+                FROM bets WHERE event_id=? AND option_key!=? AND result='pending'
+            """, (br["event_id"], okey)).fetchone()["t"]
+            if okey != br["option_key"]:
+                pool_contrario += amount  # esta apuesta va al lado contrario de okey
+
+            # Cuánto puede pagar la casa con ese pool (descontando su corte)
+            capacidad = round(pool_contrario * (1 - HOUSE_CUT), 2)
+            deficit   = round(gan_este_lado - capacidad, 2)
+
+            if deficit > peor_deficit:
+                peor_deficit   = deficit
+                peor_resultado = okey
+                peor_label     = olabel
+
+        if peor_deficit > 0.01:  # tolerancia de centavos
+            # Calcular cuánto podría apostarse como máximo en esta opción
+            # para no generar déficit en el peor resultado
+            # max_ganancia = capacidad_contraria - ganancias_ya_comprometidas
+            gan_ya = db.execute("""
+                SELECT COALESCE(SUM(potential - amount), 0) as t
+                FROM bets WHERE event_id=? AND option_key=? AND result='pending'
+            """, (br["event_id"], br["option_key"])).fetchone()["t"]
+            pool_ya_contrario = db.execute("""
+                SELECT COALESCE(SUM(amount), 0) as t
+                FROM bets WHERE event_id=? AND option_key!=? AND result='pending'
+            """, (br["event_id"], br["option_key"])).fetchone()["t"]
+            capacidad_actual = round(pool_ya_contrario * (1 - HOUSE_CUT), 2)
+            margen_gan = round(capacidad_actual - gan_ya, 2)
+            max_monto  = round(margen_gan / (old_odd - 1), 2) if old_odd > 1 else 0
+
             flash(
-                f"Apuesta de ${amount:,.0f} rechazada: la ganancia neta (${ganancia_neta:,.0f}) "
-                f"supera lo disponible en el pool contrario (${max(0,disponible):,.0f}). "
-                f"Necesitas más apuestas del otro lado o un monto menor.",
+                f"Apuesta rechazada: si gana '{peor_label}', la casa tendría que pagar "
+                f"${peor_deficit:,.0f} más de lo que recibe del lado contrario. "
+                f"Máximo aceptable ahora: ${max(0, max_monto):,.0f} a esta opción "
+                f"(o espera más apuestas del lado contrario).",
                 "error"
             )
             return redirect(url_for("admin_panel"))
@@ -769,6 +845,25 @@ def adjust_balance(uid):
         db.execute("""INSERT INTO cash_requests (user_id,type,amount,status,note,resolved_at,created_at)
             VALUES (?,'manual_adjust',?,'approved',?,?,?)""", (uid,amount,note,now(),now()))
     flash(f"Saldo ajustado ${amount:,.0f}.","success"); return redirect(url_for("view_player",uid=uid))
+
+# ── ADMIN: AJUSTE MANUAL DE PRESUPUESTO DE LA CASA ───────────────────────────
+
+@app.route("/admin/event/<int:eid>/house_budget/adjust", methods=["POST"])
+@login_required
+@admin_required
+def adjust_house_budget(eid):
+    try: amount = float(request.form["amount"])
+    except: flash("Monto invalido.","error"); return redirect(url_for("admin_panel"))
+    note = request.form.get("note", "Ajuste manual").strip()
+    with get_db() as db:
+        ev = db.execute("SELECT * FROM events WHERE id=? AND status!='finished'", (eid,)).fetchone()
+        if not ev:
+            flash("Evento no valido o ya finalizado.","error"); return redirect(url_for("admin_panel"))
+        db.execute("UPDATE events SET house_budget=MAX(0, house_budget+?) WHERE id=?", (amount, eid))
+        db.execute("INSERT INTO house_log (event_id,amount,note,created_at) VALUES (?,?,?,?)",
+            (eid, amount, note, now()))
+    flash(f"Presupuesto de la casa ajustado ${amount:+,.0f} para el evento.","success")
+    return redirect(url_for("admin_panel"))
 
 with app.app_context():
     init_db()
