@@ -349,11 +349,23 @@ def admin_panel():
                 "total_field_home": total_field_home,
                 "total_field_away": total_field_away,
             })
-        house_total = db.execute("SELECT COALESCE(SUM(amount),0) as t FROM house_log").fetchone()["t"]
+        # 1) Dinero ganado definitivamente por la casa (eventos finalizados)
+        house_earned = db.execute("SELECT COALESCE(SUM(amount),0) as t FROM house_log").fetchone()["t"]
+        # 2) Dinero en apuestas activas (pendiente, puede ser pagado a jugadores)
+        active_bets_total = db.execute("""
+            SELECT COALESCE(SUM(b.amount),0) as t FROM bets b
+            JOIN events e ON b.event_id=e.id
+            WHERE e.status != 'finished' AND b.result='pending'
+        """).fetchone()["t"]
+        # 3) Total general (casa + en juego)
+        grand_total = house_earned + active_bets_total
     return render_template("admin.html",
         tokens=tokens, players=players,
         pending_entries=pending_entries, pending_bets=pending_bets,
-        edata=edata, house_total=house_total)
+        edata=edata,
+        house_earned=house_earned,
+        active_bets_total=active_bets_total,
+        grand_total=grand_total)
 
 # ── ADMIN: TOKENS ──────────────────────────────────────────────────────────────
 
@@ -386,8 +398,8 @@ def create_event():
     home           = f["home"].strip()
     away           = f["away"].strip()
     league         = f["league"].strip()
-    entry_fee      = float(f.get("entry_fee", 0))
-    field_cut_pct  = float(f.get("field_cut_pct", FIELD_CUT))
+    house_budget   = float(f.get("house_budget", 0) or 0)
+    field_cut_pct  = float(f.get("field_cut_pct", 7) or 7) / 100.0  # viene como % entero (7 -> 0.07)
 
     if sport == "futbol":
         odd_home = float(f.get("odd_home", 2.20))
@@ -399,7 +411,7 @@ def create_event():
 
     with get_db() as db:
         cur = db.execute("""INSERT INTO events (sport,home,away,league,entry_fee,house_budget,pool,status,field_cut_pct,created_at)
-            VALUES (?,?,?,?,?,0,0,'open',?,?)""", (sport,home,away,league,entry_fee,field_cut_pct,now()))
+            VALUES (?,?,?,?,?,?,0,'open',?,?)""", (sport,home,away,league,0,house_budget,field_cut_pct,now()))
         eid = cur.lastrowid
 
         if sport == "futbol":

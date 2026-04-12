@@ -6,14 +6,25 @@
   <span class="badge badge-admin">Admin</span>
 </div>
 
-<div class="stats-grid">
-  <div class="stat-card">
-    <div class="slabel">Ganancia casa</div>
-    <div class="sval green">${{ "%.0f"|format(house_total) }}</div>
+<div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
+  <div class="stat-card" style="border:1px solid rgba(34,197,94,.2)">
+    <div class="slabel">💰 Total recaudado</div>
+    <div class="sval green">${{ "%.0f"|format(grand_total) }}</div>
+    <div style="font-size:10px;color:var(--text3);margin-top:4px">Casa + apuestas activas</div>
+  </div>
+  <div class="stat-card" style="border:1px solid rgba(59,130,246,.2)">
+    <div class="slabel">🏦 Dinero de la casa</div>
+    <div class="sval blue">${{ "%.0f"|format(house_earned) }}</div>
+    <div style="font-size:10px;color:var(--text3);margin-top:4px">Ganado en eventos finalizados</div>
+  </div>
+  <div class="stat-card" style="border:1px solid rgba(245,158,11,.2)">
+    <div class="slabel">⚡ En apuestas activas</div>
+    <div class="sval amber">${{ "%.0f"|format(active_bets_total) }}</div>
+    <div style="font-size:10px;color:var(--text3);margin-top:4px">Pendiente de pago a jugadores</div>
   </div>
   <div class="stat-card">
-    <div class="slabel">Jugadores web</div>
-    <div class="sval blue">{{ players|length }}</div>
+    <div class="slabel">Jugadores</div>
+    <div class="sval">{{ players|length }}</div>
   </div>
   <div class="stat-card">
     <div class="slabel">Eventos</div>
@@ -147,7 +158,7 @@
         <input type="text" name="league" required placeholder="La Liga, NBA…">
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div class="form-group">
         <label>Equipo local</label>
         <input type="text" name="home" required placeholder="Real Madrid">
@@ -155,6 +166,13 @@
       <div class="form-group">
         <label>Equipo visitante</label>
         <input type="text" name="away" required placeholder="Barcelona">
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group">
+        <label>🏦 Presupuesto inicial de la casa ($)</label>
+        <input type="number" name="house_budget" min="0" step="1" placeholder="50000" value="0" required>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">Límite de ganancia potencial que puede cubrir la casa</div>
       </div>
       <div class="form-group">
         <label>% para jugadores de cancha ganadores</label>
