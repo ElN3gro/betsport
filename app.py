@@ -1,5 +1,5 @@
 """
-APUUSM — Plataforma de apuestas deportivas
+APUSM — Plataforma de apuestas deportivas
 Flask + SQLite | Render-ready | Pagos en efectivo
 """
 from flask import Flask, render_template, request, redirect, url_for, session, flash
@@ -8,8 +8,8 @@ import sqlite3, secrets, hashlib, os
 from datetime import datetime
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "apuusm-secret-cambia-esto-2024")
-DB = os.path.join(os.path.dirname(__file__), "apuusm.db")
+app.secret_key = os.environ.get("SECRET_KEY", "apusm-secret-cambia-esto-2024")
+DB = os.path.join(os.path.dirname(__file__), "apusm.db")
 
 HOUSE_CUT = 0.08   # 8% del pool perdedor → casa
 FIELD_CUT = 0.07   # 7% del pool perdedor → jugadores de cancha ganadores
@@ -135,7 +135,7 @@ def init_db():
         """)
         if not db.execute("SELECT id FROM users WHERE role='admin'").fetchone():
             db.execute("""INSERT INTO users (username,full_name,phone,email,password_hash,role,balance,created_at)
-                VALUES ('admin','Administrador','000000000','admin@apuusm.com',?,'admin',0.0,?)""",
+                VALUES ('admin','Administrador','000000000','admin@apusm.com',?,'admin',0.0,?)""",
                 (hp("admin123"), now()))
 
 def login_required(f):

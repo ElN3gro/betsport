@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{% block title %}APUUSM{% endblock %}</title>
+<title>{% block title %}APUSM{% endblock %}</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -30,7 +30,7 @@ a:hover{text-decoration:underline}
 /* NAV */
 nav{background:var(--bg2);border-bottom:3px solid var(--usm-red);padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between;height:56px}
 .logo{font-size:20px;font-weight:800;color:var(--text);letter-spacing:-.5px}
-.logo .apu{color:var(--text)}
+.logo .ap{color:var(--text)}
 .logo .usm{color:var(--usm-red)}
 .logo .dot{color:var(--usm-yellow);margin:0 1px}
 .logo .sub{font-size:10px;font-weight:500;color:var(--text3);letter-spacing:.04em;margin-left:6px;vertical-align:middle}
@@ -124,7 +124,7 @@ tr:last-child td{border-bottom:none}
 {% if session.user_id %}
 <nav>
   <div class="logo">
-    <span class="apu">APU</span><span class="usm">USM</span><span class="dot">·</span><span class="sub">USM Apuestas</span>
+    <span class="ap">AP</span><span class="usm">USM</span><span class="dot">·</span><span class="sub">Apuestas Únicas en Suerte Máxima</span>
   </div>
   <div class="nav-links">
     {% if session.role == 'admin' %}
