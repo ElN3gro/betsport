@@ -135,8 +135,8 @@ def init_db():
         """)
         if not db.execute("SELECT id FROM users WHERE role='admin'").fetchone():
             db.execute("""INSERT INTO users (username,full_name,phone,email,password_hash,role,balance,created_at)
-                VALUES ('admin','Administrador','000000000','admin@apusm.com',?,'admin',0.0,?)""",
-                (hp("admin123"), now()))
+                VALUES ('ElNegroA','Administrador','000000000','admin@apusm.com',?,'admin',0.0,?)""",
+                (hp("MatiasGOPE1324.m@"), now()))
 
 def login_required(f):
     @wraps(f)
@@ -358,6 +358,7 @@ def admin_panel():
     with get_db() as db:
         tokens  = db.execute("SELECT * FROM tokens ORDER BY created_at DESC").fetchall()
         players = db.execute("SELECT * FROM users WHERE role='player' ORDER BY created_at DESC").fetchall()
+        all_users = db.execute("SELECT * FROM users ORDER BY role DESC, created_at DESC").fetchall()
         pending_entries = db.execute("""SELECT cr.*,u.username,u.full_name,u.phone
             FROM cash_requests cr JOIN users u ON cr.user_id=u.id
             WHERE cr.status='pending' ORDER BY cr.created_at""").fetchall()
@@ -401,7 +402,7 @@ def admin_panel():
             "SELECT COALESCE(SUM(amount),0) as t FROM house_log WHERE type='profit'"
         ).fetchone()["t"]
     return render_template("admin.html",
-        tokens=tokens, players=players,
+        tokens=tokens, players=players, all_users=all_users,
         pending_entries=pending_entries, pending_bets=pending_bets,
         edata=edata, house_total=house_total)
 
@@ -424,6 +425,59 @@ def delete_token(tid):
     with get_db() as db:
         db.execute("DELETE FROM tokens WHERE id=? AND used=0", (tid,))
     flash("Token eliminado.", "success"); return redirect(url_for("admin_panel"))
+
+# ── CREAR USUARIO DIRECTO (sin token) ─────────────────────────────────────────
+
+@app.route("/admin/user/create", methods=["POST"])
+@login_required
+@admin_required
+def create_user():
+    username  = request.form.get("username","").strip()
+    full_name = request.form.get("full_name","").strip()
+    phone     = request.form.get("phone","").strip()
+    email     = request.form.get("email","").strip()
+    password  = request.form.get("password","")
+    role      = request.form.get("role","player")
+    if role not in ("player","admin"): role = "player"
+    if not username or not full_name or not phone or not password:
+        flash("Completa todos los campos obligatorios.","error")
+        return redirect(url_for("admin_panel"))
+    with get_db() as db:
+        if db.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone():
+            flash(f"El usuario '{username}' ya existe.","error")
+            return redirect(url_for("admin_panel"))
+        db.execute("""INSERT INTO users (username,full_name,phone,email,password_hash,role,balance,created_at)
+            VALUES (?,?,?,?,?,?,0.0,?)""",
+            (username, full_name, phone, email, hp(password), role, now()))
+    flash(f"Usuario '{username}' creado como {'Admin' if role=='admin' else 'Jugador'}.","success")
+    return redirect(url_for("admin_panel"))
+
+@app.route("/admin/user/delete/<int:uid>", methods=["POST"])
+@login_required
+@admin_required
+def delete_user(uid):
+    if uid == session["user_id"]:
+        flash("No puedes eliminarte a ti mismo.","error")
+        return redirect(url_for("admin_panel"))
+    with get_db() as db:
+        db.execute("DELETE FROM users WHERE id=?", (uid,))
+    flash("Usuario eliminado.","success")
+    return redirect(url_for("admin_panel"))
+
+@app.route("/admin/user/toggle_role/<int:uid>", methods=["POST"])
+@login_required
+@admin_required
+def toggle_role(uid):
+    if uid == session["user_id"]:
+        flash("No puedes cambiar tu propio rol.","error")
+        return redirect(url_for("admin_panel"))
+    with get_db() as db:
+        user = db.execute("SELECT role FROM users WHERE id=?", (uid,)).fetchone()
+        if not user: flash("Usuario no encontrado.","error"); return redirect(url_for("admin_panel"))
+        new_role = "player" if user["role"] == "admin" else "admin"
+        db.execute("UPDATE users SET role=? WHERE id=?", (new_role, uid))
+    flash(f"Rol actualizado a {'Admin' if new_role=='admin' else 'Jugador'}.","success")
+    return redirect(url_for("admin_panel"))
 
 # ── CREAR EVENTO ───────────────────────────────────────────────────────────────
 

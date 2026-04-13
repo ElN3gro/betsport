@@ -531,21 +531,82 @@ function toggleOdds(sport) {
 </div>
 {% endfor %}
 
-<!-- ── JUGADORES WEB REGISTRADOS ───────────────────────────────── -->
-<div class="section-title">Apostadores registrados</div>
+<!-- ── CREAR USUARIO ────────────────────────────────────────────── -->
+<div class="section-title">Usuarios</div>
+<div class="card">
+  <div class="card-title">Crear usuario</div>
+  <form method="POST" action="{{ url_for('create_user') }}">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      <div class="form-group" style="margin:0">
+        <label>Nombre completo *</label>
+        <input type="text" name="full_name" required placeholder="Juan Pérez">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>Usuario *</label>
+        <input type="text" name="username" required placeholder="juan_perez">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>Contraseña *</label>
+        <input type="text" name="password" required placeholder="contraseña">
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:10px">
+      <div class="form-group" style="margin:0">
+        <label>Teléfono *</label>
+        <input type="text" name="phone" required placeholder="+56 9 1234 5678">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>Email (opcional)</label>
+        <input type="email" name="email" placeholder="correo@ejemplo.com">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>Rol</label>
+        <select name="role">
+          <option value="player">👤 Jugador</option>
+          <option value="admin">🔑 Admin</option>
+        </select>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary" style="margin-top:14px">Crear usuario</button>
+  </form>
+</div>
+
+<!-- ── LISTA DE USUARIOS ─────────────────────────────────────────── -->
 <div class="card" style="padding:0;overflow:hidden">
   <table>
-    <thead><tr><th>Nombre</th><th>Usuario</th><th>Teléfono</th><th>Email</th><th>Saldo</th><th>Desde</th><th></th></tr></thead>
+    <thead>
+      <tr><th>Nombre</th><th>Usuario</th><th>Teléfono</th><th>Email</th><th>Rol</th><th>Saldo</th><th>Desde</th><th>Acciones</th></tr>
+    </thead>
     <tbody>
-      {% for p in players %}
+      {% for p in all_users %}
       <tr>
         <td style="font-weight:500">{{ p['full_name'] }}</td>
         <td style="color:var(--text2)">@{{ p['username'] }}</td>
         <td>{{ p['phone'] }}</td>
         <td style="font-size:12px;color:var(--text2)">{{ p['email'] or '—' }}</td>
+        <td>
+          {% if p['role'] == 'admin' %}
+            <span class="badge badge-admin">🔑 Admin</span>
+          {% else %}
+            <span class="badge badge-approved">👤 Jugador</span>
+          {% endif %}
+        </td>
         <td style="color:var(--green);font-weight:500">${{ "%.0f"|format(p['balance']) }}</td>
         <td style="font-size:11px;color:var(--text3)">{{ p['created_at'][:10] }}</td>
-        <td><a href="{{ url_for('view_player', uid=p['id']) }}" class="btn btn-sm">Ver perfil</a></td>
+        <td style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          {% if p['role'] != 'admin' %}
+            <a href="{{ url_for('view_player', uid=p['id']) }}" class="btn btn-sm">Ver perfil</a>
+          {% endif %}
+          <form method="POST" action="{{ url_for('toggle_role', uid=p['id']) }}" style="margin:0">
+            <button class="btn btn-sm" style="border-color:var(--amber);color:var(--amber)">
+              {% if p['role'] == 'admin' %}→ Jugador{% else %}→ Admin{% endif %}
+            </button>
+          </form>
+          <form method="POST" action="{{ url_for('delete_user', uid=p['id']) }}" style="margin:0"
+            onsubmit="return confirm('¿Eliminar usuario {{ p['username'] }}? Esta acción no se puede deshacer.')">
+            <button class="btn btn-sm btn-danger">Eliminar</button>
+          </form>
+        </td>
       </tr>
       {% endfor %}
     </tbody>
