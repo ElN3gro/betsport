@@ -17,6 +17,12 @@ MIN_ODD   = 1.01
 
 def now(): return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 def hp(pw): return hashlib.sha256(pw.encode()).hexdigest()
+def round50(x):
+    """Redondea hacia abajo al múltiplo de 50 más cercano.
+    La diferencia queda como ganancia de la casa.
+    Ej: 230 → 200, 275 → 250, 300 → 300
+    """
+    return int(x // 50) * 50
 
 def get_db():
     c = sqlite3.connect(DB)
@@ -835,8 +841,13 @@ def finish_event(eid):
                      f"Pool perdedor ${losing_pool:,.0f} - ganancias ${total_ganancias_prometidas:,.0f} - cancha ${field_bonus:,.0f}",
                      now()))
             for b in winning_bets:
-                db.execute("UPDATE bets SET result='won', payout=? WHERE id=?", (b["potential"], b["id"]))
-                db.execute("UPDATE users SET balance=balance+? WHERE id=?", (b["potential"], b["user_id"]))
+                payout = round50(b["potential"])
+                redondeo = round(b["potential"] - payout, 2)
+                if redondeo > 0:
+                    db.execute("INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
+                        (eid, redondeo, "redondeo", f"Redondeo apuesta ganadora ID {b['id']}: ${b['potential']:.0f} → ${payout}", now()))
+                db.execute("UPDATE bets SET result='won', payout=? WHERE id=?", (payout, b["id"]))
+                db.execute("UPDATE users SET balance=balance+? WHERE id=?", (payout, b["user_id"]))
 
         else:
             # Pool insuficiente: usar house_budget para cubrir el déficit
@@ -851,8 +862,13 @@ def finish_event(eid):
                      f"Casa cubrió déficit ${deficit:,.0f} (pool ${losing_pool:,.0f} insuficiente para ganancias ${total_ganancias_prometidas:,.0f})",
                      now()))
                 for b in winning_bets:
-                    db.execute("UPDATE bets SET result='won', payout=? WHERE id=?", (b["potential"], b["id"]))
-                    db.execute("UPDATE users SET balance=balance+? WHERE id=?", (b["potential"], b["user_id"]))
+                    payout = round50(b["potential"])
+                    redondeo = round(b["potential"] - payout, 2)
+                    if redondeo > 0:
+                        db.execute("INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
+                            (eid, redondeo, "redondeo", f"Redondeo apuesta ganadora ID {b['id']}: ${b['potential']:.0f} → ${payout}", now()))
+                    db.execute("UPDATE bets SET result='won', payout=? WHERE id=?", (payout, b["id"]))
+                    db.execute("UPDATE users SET balance=balance+? WHERE id=?", (payout, b["user_id"]))
             else:
                 # Ni el pool ni house_budget alcanzan: pagar proporcional
                 total_disponible = pool_para_ganancias + house_budget_disponible
@@ -868,7 +884,12 @@ def finish_event(eid):
                         ganancia = round(total_disponible * ratio, 2)
                     else:
                         ganancia = 0
-                    payout = round(b["amount"] + ganancia, 2)
+                    payout_bruto = round(b["amount"] + ganancia, 2)
+                    payout = round50(payout_bruto)
+                    redondeo = round(payout_bruto - payout, 2)
+                    if redondeo > 0:
+                        db.execute("INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
+                            (eid, redondeo, "redondeo", f"Redondeo apuesta ganadora ID {b['id']}: ${payout_bruto:.0f} → ${payout}", now()))
                     db.execute("UPDATE bets SET result='won', payout=? WHERE id=?", (payout, b["id"]))
                     db.execute("UPDATE users SET balance=balance+? WHERE id=?", (payout, b["user_id"]))
 
@@ -892,7 +913,14 @@ def finish_event(eid):
             n_winners_fp = len(winner_fp)
             if n_winners_fp > 0:
                 fondo = sum(p["entry_paid"] for p in winner_fp) + sum(p["entry_paid"] for p in loser_fp) + field_bonus
-                per_player = round(fondo / n_winners_fp, 2)
+                per_player_bruto = round(fondo / n_winners_fp, 2)
+                per_player = round50(per_player_bruto)
+                redondeo_fp = round(per_player_bruto - per_player, 2) * n_winners_fp
+                if redondeo_fp > 0:
+                    db.execute("INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
+                        (eid, redondeo_fp, "redondeo",
+                         f"Redondeo jugadores cancha: ${per_player_bruto:.0f} → ${per_player} × {n_winners_fp} jugadores",
+                         now()))
                 for p in winner_fp:
                     db.execute("UPDATE field_players SET payout=? WHERE id=?", (per_player, p["id"]))
             else:
