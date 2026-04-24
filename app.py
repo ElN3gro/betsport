@@ -393,6 +393,7 @@ def cancel_bet_request(brid):
     finally:
         conn.close()
     flash("Solicitud cancelada.", "success")
+    emit_update("bet_request_cancelled")
     return redirect(url_for("dashboard"))
 
 # ── ADMIN PANEL ────────────────────────────────────────────────────────────────
@@ -570,7 +571,9 @@ def create_event():
         conn.commit()
     finally:
         conn.close()
-    flash(f"Evento '{home} vs {away}' creado.", "success"); return redirect(url_for("admin_panel"))
+    flash(f"Evento '{home} vs {away}' creado.", "success")
+    emit_update("event_created")
+    return redirect(url_for("admin_panel"))
 
 @app.route("/admin/event/delete/<int:eid>", methods=["POST"])
 @login_required
@@ -584,7 +587,9 @@ def delete_event(eid):
         conn.commit()
     finally:
         conn.close()
-    flash("Evento eliminado.", "success"); return redirect(url_for("admin_panel"))
+    flash("Evento eliminado.", "success")
+    emit_update("event_deleted")
+    return redirect(url_for("admin_panel"))
 
 @app.route("/admin/event/close/<int:eid>", methods=["POST"])
 @login_required
@@ -648,7 +653,9 @@ def adjust_odds(eid):
         conn.commit()
     finally:
         conn.close()
-    flash("Configuracion actualizada.", "success"); return redirect(url_for("admin_panel"))
+    flash("Configuracion actualizada.", "success")
+    emit_update("odds_updated")
+    return redirect(url_for("admin_panel"))
 
 # ── JUGADORES DE CANCHA ────────────────────────────────────────────────────────
 
@@ -1023,7 +1030,9 @@ def adjust_balance(uid):
         conn.commit()
     finally:
         conn.close()
-    flash(f"Saldo ajustado ${amount:,.0f}.", "success"); return redirect(url_for("view_player", uid=uid))
+    flash(f"Saldo ajustado ${amount:,.0f}.", "success")
+    emit_update("balance_updated")
+    return redirect(url_for("view_player", uid=uid))
 
 @app.route("/admin/player/<int:uid>/add_entry/<int:eid>", methods=["POST"])
 @login_required
@@ -1042,7 +1051,9 @@ def add_entry(uid, eid):
         conn.commit()
     finally:
         conn.close()
-    flash("Entrada confirmada.", "success"); return redirect(url_for("view_player", uid=uid))
+    flash("Entrada confirmada.", "success")
+    emit_update("entry_approved")
+    return redirect(url_for("view_player", uid=uid))
 
 @app.route("/admin/player/<int:uid>/remove_entry/<int:eid>", methods=["POST"])
 @login_required
@@ -1059,7 +1070,9 @@ def remove_entry(uid, eid):
         conn.commit()
     finally:
         conn.close()
-    flash("Entrada quitada.", "success"); return redirect(url_for("view_player", uid=uid))
+    flash("Entrada quitada.", "success")
+    emit_update("entry_rejected")
+    return redirect(url_for("view_player", uid=uid))
 
 @app.route("/admin/event/<int:eid>/house_budget/adjust", methods=["POST"])
 @login_required
@@ -1077,7 +1090,9 @@ def adjust_house_budget(eid):
         conn.commit()
     finally:
         conn.close()
-    flash(f"Presupuesto ajustado ${amount:+,.0f}.", "success"); return redirect(url_for("admin_panel"))
+    flash(f"Presupuesto ajustado ${amount:+,.0f}.", "success")
+    emit_update("event_updated")
+    return redirect(url_for("admin_panel"))
 
 @app.route("/admin/event/<int:eid>/entry_fee/update", methods=["POST"])
 @login_required
@@ -1094,7 +1109,9 @@ def update_entry_fee(eid):
         conn.commit()
     finally:
         conn.close()
-    flash(f"Cuota actualizada a ${fee:,.0f}.", "success"); return redirect(url_for("admin_panel"))
+    flash(f"Cuota actualizada a ${fee:,.0f}.", "success")
+    emit_update("event_updated")
+    return redirect(url_for("admin_panel"))
 
 @app.route("/admin/reset_data", methods=["POST"])
 @login_required
@@ -1110,7 +1127,9 @@ def reset_data():
         conn.commit()
     finally:
         conn.close()
-    flash("Datos reseteados.", "success"); return redirect(url_for("admin_panel"))
+    flash("Datos reseteados.", "success")
+    emit_update("reset")
+    return redirect(url_for("admin_panel"))
 
 # ── INIT ───────────────────────────────────────────────────────────────────────
 

@@ -166,7 +166,13 @@ tr:last-child td{border-bottom:none}
   const socket = io();
 
   // Tipos de eventos que disparan recarga
-  const RELOAD_EVENTS = ["bet_approved","bet_rejected","entry_approved","entry_rejected","event_updated","event_finished","new_entry_request","new_bet_request"];
+  const RELOAD_EVENTS = [
+    "new_entry_request", "new_bet_request",
+    "entry_approved", "entry_rejected",
+    "bet_approved", "bet_rejected", "bet_request_cancelled",
+    "event_created", "event_updated", "event_deleted", "event_finished",
+    "odds_updated", "balance_updated", "reset"
+  ];
 
   socket.on("update", function(payload) {
     if (RELOAD_EVENTS.includes(payload.type)) {
