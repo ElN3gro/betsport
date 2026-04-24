@@ -3,12 +3,14 @@ APUSM — Plataforma de apuestas deportivas
 Flask + PostgreSQL | Render-ready | Pagos en efectivo
 """
 from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask_socketio import SocketIO, emit
 from functools import wraps
 import psycopg2, psycopg2.extras, secrets, hashlib, os
 from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "apusm-secret-cambia-esto-2024")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 HOUSE_CUT = 0.08
@@ -200,6 +202,16 @@ def recalc_auto_odds(conn, eid):
         else:
             new_odd = o["odd"]
         execute(conn, "UPDATE event_odds SET odd=? WHERE id=?", (new_odd, o["id"]))
+
+# ── TIEMPO REAL ───────────────────────────────────────────────────────────────
+
+def emit_update(event_type, data=None):
+    """Emite un evento a todos los clientes conectados."""
+    socketio.emit("update", {"type": event_type, "data": data or {}})
+
+@app.route("/healthz")
+def healthz():
+    return "ok", 200
 
 # ── AUTH ──────────────────────────────────────────────────────────────────────
 
@@ -583,7 +595,9 @@ def close_event(eid):
         conn.commit()
     finally:
         conn.close()
-    flash("Evento cerrado.", "success"); return redirect(url_for("admin_panel"))
+    flash("Evento cerrado.", "success")
+    emit_update("event_updated")
+    return redirect(url_for("admin_panel"))
 
 @app.route("/admin/event/reopen/<int:eid>", methods=["POST"])
 @login_required
@@ -595,7 +609,9 @@ def reopen_event(eid):
         conn.commit()
     finally:
         conn.close()
-    flash("Evento reabierto.", "success"); return redirect(url_for("admin_panel"))
+    flash("Evento reabierto.", "success")
+    emit_update("event_updated")
+    return redirect(url_for("admin_panel"))
 
 # ── AJUSTE MANUAL DE ODDS ──────────────────────────────────────────────────────
 
@@ -779,6 +795,7 @@ def approve_bet_request(brid):
         if ok: conn.commit()
     finally:
         conn.close()
+    if ok: emit_update("bet_approved")
     flash(msg, "success" if ok else "error"); return redirect(url_for("admin_panel"))
 
 @app.route("/admin/event/<int:eid>/approve_all_bets", methods=["POST"])
@@ -797,6 +814,7 @@ def approve_all_bets(eid):
     finally:
         conn.close()
     flash(f"{aprobadas} aprobadas, {rechazadas} rechazadas.", "success" if rechazadas == 0 else "info")
+    emit_update("bet_approved")
     return redirect(url_for("admin_panel"))
 
 @app.route("/admin/bet_request/<int:brid>/reject", methods=["POST"])
@@ -809,7 +827,9 @@ def reject_bet_request(brid):
         conn.commit()
     finally:
         conn.close()
-    flash("Solicitud rechazada.", "info"); return redirect(url_for("admin_panel"))
+    flash("Solicitud rechazada.", "info")
+    emit_update("bet_rejected")
+    return redirect(url_for("admin_panel"))
 
 # ── APROBAR / RECHAZAR PAGOS DE ENTRADA ───────────────────────────────────────
 
@@ -835,7 +855,9 @@ def approve_cash(rid):
         conn.commit()
     finally:
         conn.close()
-    flash("Entrada confirmada.", "success"); return redirect(url_for("admin_panel"))
+    flash("Entrada confirmada.", "success")
+    emit_update("entry_approved")
+    return redirect(url_for("admin_panel"))
 
 @app.route("/admin/cash/reject/<int:rid>", methods=["POST"])
 @login_required
@@ -847,7 +869,9 @@ def reject_cash(rid):
         conn.commit()
     finally:
         conn.close()
-    flash("Solicitud rechazada.", "info"); return redirect(url_for("admin_panel"))
+    flash("Solicitud rechazada.", "info")
+    emit_update("entry_rejected")
+    return redirect(url_for("admin_panel"))
 
 # ── FINALIZAR EVENTO Y PAGAR ──────────────────────────────────────────────────
 
@@ -948,6 +972,7 @@ def finish_event(eid):
     finally:
         conn.close()
     flash(f"Evento finalizado. {len(winning_bets)} apostadores ganadores.", "success")
+    emit_update("event_finished")
     return redirect(url_for("admin_panel"))
 
 # ── VER PERFIL JUGADOR (admin) ─────────────────────────────────────────────────
@@ -1091,4 +1116,4 @@ with app.app_context():
     init_db()
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    socketio.run(app, debug=True, port=5000)

@@ -160,5 +160,27 @@ tr:last-child td{border-bottom:none}
   <a href="{{ url_for('terms') }}" style="color:var(--text3);text-decoration:underline">Términos y Condiciones</a>
 </div>
 
+<!-- Socket.io: tiempo real -->
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+  const socket = io();
+
+  // Tipos de eventos que disparan recarga
+  const RELOAD_EVENTS = ["bet_approved","bet_rejected","entry_approved","entry_rejected","event_updated","event_finished"];
+
+  socket.on("update", function(payload) {
+    if (RELOAD_EVENTS.includes(payload.type)) {
+      // Pequeño delay para que el servidor termine de escribir en BD
+      setTimeout(function() { location.reload(); }, 400);
+    }
+  });
+
+  socket.on("connect", function() {
+    console.log("🟢 Conectado en tiempo real");
+  });
+  socket.on("disconnect", function() {
+    console.log("🔴 Desconectado — reconectando...");
+  });
+</script>
 </body>
 </html>
