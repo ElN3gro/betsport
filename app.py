@@ -94,6 +94,9 @@ def init_db():
             winner_key TEXT DEFAULT '',
             field_cut_pct REAL NOT NULL DEFAULT 0.07,
             odds_mode TEXT NOT NULL DEFAULT 'manual',
+            score_home INTEGER NOT NULL DEFAULT 0,
+            score_away INTEGER NOT NULL DEFAULT 0,
+            score_label TEXT NOT NULL DEFAULT 'Marcador',
             created_at TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS event_odds (
@@ -163,6 +166,16 @@ def init_db():
             created_at TEXT NOT NULL
         );
         """)
+        # Migración: agregar columnas de marcador si no existen
+        for col, definition in [
+            ("score_home", "INTEGER NOT NULL DEFAULT 0"),
+            ("score_away", "INTEGER NOT NULL DEFAULT 0"),
+            ("score_label", "TEXT NOT NULL DEFAULT 'Marcador'"),
+        ]:
+            try:
+                cur.execute(f"ALTER TABLE events ADD COLUMN {col} {definition}")
+            except Exception:
+                pass  # columna ya existe
         # Admin por defecto
         cur.execute("SELECT id FROM users WHERE role='admin'")
         if not cur.fetchone():
@@ -191,7 +204,7 @@ def admin_required(f):
 
 def recalc_auto_odds(conn, eid):
     ev   = fetchone(conn, "SELECT * FROM events WHERE id=?", (eid,))
-    odds = fetchall(conn, "SELECT * FROM event_odds WHERE event_id=?", (eid,))
+    odds = fetchall(conn, "SELECT * FROM event_odds WHERE event_id=? ORDER BY CASE option_key WHEN 'home' THEN 1 WHEN 'draw' THEN 2 WHEN 'away' THEN 3 END", (eid,))
     total_pool = sum(o["total_bet"] for o in odds)
     cuts = HOUSE_CUT + ev["field_cut_pct"]
     for o in odds:
@@ -306,7 +319,7 @@ def dashboard():
         events = fetchall(conn, "SELECT * FROM events WHERE status IN ('open','closed') ORDER BY created_at DESC")
         edata  = []
         for ev in events:
-            odds = fetchall(conn, "SELECT * FROM event_odds WHERE event_id=?", (ev["id"],))
+            odds = fetchall(conn, "SELECT * FROM event_odds WHERE event_id=? ORDER BY CASE option_key WHEN 'home' THEN 1 WHEN 'draw' THEN 2 WHEN 'away' THEN 3 END", (ev["id"],))
             has_entry    = fetchone(conn, "SELECT id FROM entries WHERE user_id=? AND event_id=?", (session["user_id"], ev["id"]))
             pending_entry= fetchone(conn, "SELECT id FROM cash_requests WHERE user_id=? AND type=? AND status='pending'", (session["user_id"], f"entry_{ev['id']}"))
             my_bet_reqs  = fetchall(conn, "SELECT * FROM bet_requests WHERE user_id=? AND event_id=? ORDER BY created_at DESC", (session["user_id"], ev["id"]))
@@ -424,7 +437,7 @@ def admin_panel():
                 "potential": round(br["amount"] * locked_odd, 2), "aprobable": True})
         edata = []
         for ev in fetchall(conn, "SELECT * FROM events ORDER BY created_at DESC"):
-            odds    = fetchall(conn, "SELECT * FROM event_odds WHERE event_id=?", (ev["id"],))
+            odds    = fetchall(conn, "SELECT * FROM event_odds WHERE event_id=? ORDER BY CASE option_key WHEN 'home' THEN 1 WHEN 'draw' THEN 2 WHEN 'away' THEN 3 END", (ev["id"],))
             count   = fetchone(conn, "SELECT COUNT(*) as c FROM entries WHERE event_id=?", (ev["id"],))["c"]
             fp_home = fetchall(conn, "SELECT * FROM field_players WHERE event_id=? AND team_key='home'", (ev["id"],))
             fp_away = fetchall(conn, "SELECT * FROM field_players WHERE event_id=? AND team_key='away'", (ev["id"],))
@@ -537,13 +550,15 @@ def create_event():
     entry_fee      = float(f.get("entry_fee", 0))
     initial_budget = float(f.get("initial_budget", 0))
     odds_mode      = f.get("odds_mode", "manual")
+    sport_lower    = sport.strip().lower()
+    has_draw       = sport_lower in ("futbol", "fútbol", "football", "soccer")
     try:
         pct_raw = float(f.get("field_cut_pct", FIELD_CUT * 100))
         field_cut_pct = round(pct_raw / 100.0, 4) if pct_raw > 1 else pct_raw
         field_cut_pct = max(0.0, min(0.50, field_cut_pct))
     except:
         field_cut_pct = FIELD_CUT
-    if sport == "futbol":
+    if has_draw:
         odd_home = float(f.get("odd_home", 2.20))
         odd_draw = float(f.get("odd_draw", 3.20))
         odd_away = float(f.get("odd_away", 2.80))
@@ -552,7 +567,7 @@ def create_event():
         odd_away = float(f.get("odd_away", 2.00))
         odd_draw = None
     if odds_mode == "auto":
-        odd_home = 2.00; odd_draw = 3.00 if sport == "futbol" else None; odd_away = 2.00
+        odd_home = 2.00; odd_draw = 3.00 if has_draw else None; odd_away = 2.00
 
     conn = get_db()
     try:
@@ -563,7 +578,7 @@ def create_event():
         if initial_budget > 0:
             execute(conn, "INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
                 (eid, initial_budget, "income", "Presupuesto inicial de la casa", now()))
-        options = [("home","Local",odd_home),("draw","Empate",odd_draw),("away","Visitante",odd_away)] if sport=="futbol" \
+        options = [("home","Local",odd_home),("draw","Empate",odd_draw),("away","Visitante",odd_away)] if sport_lower in ("futbol","fútbol","football","soccer") \
               else [("home","Local",odd_home),("away","Visitante",odd_away)]
         for key, label, odd in options:
             execute(conn, "INSERT INTO event_odds (event_id,option_key,label,odd,total_bet) VALUES (?,?,?,?,0)",
@@ -641,7 +656,7 @@ def adjust_odds(eid):
         new_mode = request.form.get("odds_mode", "").strip()
         if new_mode in ("manual","auto"):
             execute(conn, "UPDATE events SET odds_mode=? WHERE id=?", (new_mode, eid))
-        for o in fetchall(conn, "SELECT * FROM event_odds WHERE event_id=?", (eid,)):
+        for o in fetchall(conn, "SELECT * FROM event_odds WHERE event_id=? ORDER BY CASE option_key WHEN 'home' THEN 1 WHEN 'draw' THEN 2 WHEN 'away' THEN 3 END", (eid,)):
             val = request.form.get(f"odd_{o['option_key']}", "").strip()
             if val:
                 try:
@@ -746,7 +761,7 @@ def _do_approve_bet(conn, brid):
 
     house_budget  = ev["house_budget"]
     field_cut_pct = ev["field_cut_pct"]
-    all_odds = {o["option_key"]: o for o in fetchall(conn, "SELECT * FROM event_odds WHERE event_id=?", (br["event_id"],))}
+    all_odds = {o["option_key"]: o for o in fetchall(conn, "SELECT * FROM event_odds WHERE event_id=? ORDER BY CASE option_key WHEN 'home' THEN 1 WHEN 'draw' THEN 2 WHEN 'away' THEN 3 END", (br["event_id"],))}
 
     ganancias_por_opcion = {}
     pool_por_opcion = {}
@@ -1129,6 +1144,29 @@ def reset_data():
         conn.close()
     flash("Datos reseteados.", "success")
     emit_update("reset")
+    return redirect(url_for("admin_panel"))
+
+# ── MARCADOR EN TIEMPO REAL ───────────────────────────────────────────────────
+
+@app.route("/admin/event/<int:eid>/score/update", methods=["POST"])
+@login_required
+@admin_required
+def update_score(eid):
+    try:
+        sh = int(request.form.get("score_home", 0))
+        sa = int(request.form.get("score_away", 0))
+    except:
+        flash("Marcador inválido.", "error"); return redirect(url_for("admin_panel"))
+    label = request.form.get("score_label", "Marcador").strip() or "Marcador"
+    conn = get_db()
+    try:
+        ev = fetchone(conn, "SELECT * FROM events WHERE id=? AND status!='finished'", (eid,))
+        if not ev: flash("Evento no válido.", "error"); return redirect(url_for("admin_panel"))
+        execute(conn, "UPDATE events SET score_home=?, score_away=?, score_label=? WHERE id=?", (sh, sa, label, eid))
+        conn.commit()
+    finally:
+        conn.close()
+    emit_update("score_updated")
     return redirect(url_for("admin_panel"))
 
 # ── INIT ───────────────────────────────────────────────────────────────────────

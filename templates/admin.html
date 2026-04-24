@@ -187,10 +187,12 @@ document.addEventListener('DOMContentLoaded', function() {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div class="form-group">
         <label>Deporte</label>
-        <select name="sport" id="sport-select" required onchange="toggleOdds(this.value)">
-          <option value="futbol">⚽ Fútbol</option>
-          <option value="basketball">🏀 Basketball</option>
-        </select>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="text" name="sport" id="sport-input" required placeholder="Fútbol, Basketball, Ping Pong…" oninput="onSportInput(this.value)" style="flex:1">
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);cursor:pointer;white-space:nowrap;margin:0">
+            <input type="checkbox" id="has-draw" onchange="toggleDraw(this.checked)" style="width:auto;margin:0"> ¿Tiene empate?
+          </label>
+        </div>
       </div>
       <div class="form-group">
         <label>Liga / Torneo</label>
@@ -237,28 +239,21 @@ document.addEventListener('DOMContentLoaded', function() {
         📊 Multiplicadores iniciales
         <span style="font-weight:400;color:var(--text3)"> — se ajustan automáticamente al recibir apuestas</span>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px" id="odds-futbol">
+      <div id="odds-container" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="form-group" style="margin:0">
           <label>Local (x)</label>
-          <input type="number" name="odd_home" step="0.01" min="1.02" value="2.20">
-        </div>
-        <div class="form-group" style="margin:0">
-          <label>Empate (x)</label>
-          <input type="number" name="odd_draw" step="0.01" min="1.02" value="3.20">
+          <input type="number" name="odd_home" step="0.01" min="1.02" value="1.90">
         </div>
         <div class="form-group" style="margin:0">
           <label>Visitante (x)</label>
-          <input type="number" name="odd_away" step="0.01" min="1.02" value="2.80">
+          <input type="number" name="odd_away" step="0.01" min="1.02" value="2.00">
         </div>
       </div>
-      <div style="display:none;grid-template-columns:1fr 1fr;gap:10px" id="odds-basketball">
+      <!-- El campo draw se inyecta/remueve dinámicamente -->
+      <div id="draw-slot" style="margin-top:10px;display:none">
         <div class="form-group" style="margin:0">
-          <label>Local (x)</label>
-          <input type="number" name="odd_home_bk" step="0.01" min="1.02" value="1.90">
-        </div>
-        <div class="form-group" style="margin:0">
-          <label>Visitante (x)</label>
-          <input type="number" name="odd_away_bk" step="0.01" min="1.02" value="2.00">
+          <label>Empate (x)</label>
+          <input type="number" name="odd_draw" id="odd-draw-input" step="0.01" min="1.02" value="3.20">
         </div>
       </div>
     </div>
@@ -267,21 +262,22 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 
 <script>
-function toggleOdds(sport) {
-  var fEl = document.getElementById('odds-futbol');
-  var bEl = document.getElementById('odds-basketball');
-  var hEl = document.querySelector('[name="odd_home"]');
-  var dEl = document.querySelector('[name="odd_draw"]');
-  var aEl = document.querySelector('[name="odd_away"]');
-  if (sport === 'basketball') {
-    fEl.style.display = 'none'; bEl.style.display = 'grid';
-    hEl.disabled = true; dEl.disabled = true; aEl.disabled = true;
-    document.querySelector('[name="odd_home_bk"]').name = 'odd_home';
-    document.querySelector('[name="odd_away_bk"]').name = 'odd_away';
-  } else {
-    fEl.style.display = 'grid'; bEl.style.display = 'none';
-    hEl.disabled = false; dEl.disabled = false; aEl.disabled = false;
-  }
+// Deportes que tienen empate por defecto al escribir su nombre
+const DRAW_SPORTS = ["futbol","fútbol","football","soccer"];
+
+function onSportInput(val) {
+  var hasDraw = DRAW_SPORTS.includes(val.trim().toLowerCase());
+  var cb = document.getElementById('has-draw');
+  cb.checked = hasDraw;
+  toggleDraw(hasDraw);
+}
+
+function toggleDraw(show) {
+  var slot = document.getElementById('draw-slot');
+  var inp  = document.getElementById('odd-draw-input');
+  slot.style.display = show ? 'block' : 'none';
+  inp.disabled = !show;
+  if (!inp.disabled && inp.value === '') inp.value = '3.20';
 }
 </script>
 
@@ -294,7 +290,7 @@ function toggleOdds(sport) {
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
     <div>
       <div style="font-size:11px;color:var(--text3);margin-bottom:3px">
-        {{ '⚽' if ev['sport']=='futbol' else '🏀' }} {{ ev['league'] }}
+        {{ '⚽' if ev['sport'] in ('futbol','fútbol','football','soccer') else '🏀' if ev['sport'] in ('basketball','basquetbol') else '🎮' }} {{ ev['league'] }}
         — {{ ed.count }} apostadores — % cancha: {{ "%.0f"|format(ev['field_cut_pct']*100) }}%
         — odds: {{ ev['odds_mode'] }}
       </div>
@@ -327,6 +323,47 @@ function toggleOdds(sport) {
       {% endif %}
     </div>
   </div>
+
+  <!-- Marcador en tiempo real -->
+  {% if ev['status'] != 'finished' %}
+  <div style="background:var(--bg3);border-radius:var(--r);padding:12px 14px;margin-bottom:14px">
+    <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">
+      🏟️ {{ ev.get('score_label','Marcador') }}
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+      <div style="text-align:center;flex:1">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:3px">{{ ev['home'] }}</div>
+        <div style="font-size:32px;font-weight:700;color:var(--text)">{{ ev.get('score_home', 0) }}</div>
+      </div>
+      <div style="font-size:18px;color:var(--text3);font-weight:300">—</div>
+      <div style="text-align:center;flex:1">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:3px">{{ ev['away'] }}</div>
+        <div style="font-size:32px;font-weight:700;color:var(--text)">{{ ev.get('score_away', 0) }}</div>
+      </div>
+    </div>
+    <form method="POST" action="{{ url_for('update_score', eid=ev['id']) }}">
+      <div style="display:grid;grid-template-columns:auto 1fr 1fr auto;gap:6px;align-items:end">
+        <div class="form-group" style="margin:0">
+          <label style="font-size:10px">Unidad</label>
+          <input type="text" name="score_label" value="{{ ev.get('score_label','Marcador') }}" placeholder="Goles, Pts…" style="width:90px;font-size:12px;padding:5px 8px">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label style="font-size:10px">{{ ev['home'] }}</label>
+          <input type="number" name="score_home" value="{{ ev.get('score_home',0) }}" min="0" style="font-size:14px;font-weight:600;text-align:center">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label style="font-size:10px">{{ ev['away'] }}</label>
+          <input type="number" name="score_away" value="{{ ev.get('score_away',0) }}" min="0" style="font-size:14px;font-weight:600;text-align:center">
+        </div>
+        <button type="submit" class="btn btn-sm btn-primary" style="margin-bottom:0">Actualizar</button>
+      </div>
+    </form>
+  </div>
+  {% else %}
+  <div style="font-size:13px;color:var(--text2);margin-bottom:12px">
+    🏟️ Resultado final: <strong>{{ ev['home'] }} {{ ev.get('score_home',0) }} — {{ ev.get('score_away',0) }} {{ ev['away'] }}</strong>
+  </div>
+  {% endif %}
 
   <!-- Odds actuales -->
   <div class="odds-grid {{ 'g3' if ed.odds|length==3 else 'g2' }}" style="margin-bottom:12px">

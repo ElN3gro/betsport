@@ -36,11 +36,58 @@
         <label>Contraseña <span style="color:var(--red)">*</span></label>
         <input type="password" name="password" required placeholder="mínimo 6 caracteres">
       </div>
-      <button type="submit" class="btn btn-primary btn-full" style="margin-top:6px">Crear cuenta</button>
+
+      <!-- Términos y condiciones con scroll obligatorio -->
+      <div style="margin-bottom:14px">
+        <label style="font-size:12px;color:var(--text2);margin-bottom:6px;display:block">
+          Términos y Condiciones <span style="color:var(--red)">*</span>
+        </label>
+        <div id="tc-box" onscroll="checkScroll(this)"
+          style="height:160px;overflow-y:auto;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:12px 14px;font-size:12px;color:var(--text2);line-height:1.7">
+          <strong style="color:var(--text)">APUSM — Términos y Condiciones resumidos</strong><br><br>
+          1. <strong style="color:var(--text)">Naturaleza privada:</strong> APUSM es una plataforma privada entre personas conocidas. No es una casa de apuestas comercial. El acceso requiere invitación del administrador.<br><br>
+          2. <strong style="color:var(--text)">Riesgo económico:</strong> Las apuestas implican riesgo de pérdida total del dinero apostado. La plataforma no garantiza ganancias bajo ninguna circunstancia.<br><br>
+          3. <strong style="color:var(--text)">Pagos en efectivo:</strong> Cuotas y apuestas se pagan directamente al administrador. El registro de una solicitud no constituye confirmación de pago.<br><br>
+          4. <strong style="color:var(--text)">No reembolsable:</strong> Las cuotas de entrada confirmadas no son reembolsables, independientemente del resultado.<br><br>
+          5. <strong style="color:var(--text)">Multiplicadores:</strong> Los odds pueden cambiar entre la solicitud y la aprobación. La plataforma no garantiza el multiplicador solicitado.<br><br>
+          6. <strong style="color:var(--text)">Responsabilidad:</strong> El administrador y la plataforma no se responsabilizan por pérdidas, errores técnicos, caídas del sistema ni resultados deportivos adversos.<br><br>
+          7. <strong style="color:var(--text)">Conducta:</strong> Comportamientos deshonestos o fraudulentos resultan en suspensión inmediata sin reembolso.<br><br>
+          8. <strong style="color:var(--text)">Desvinculación institucional:</strong> APUSM no tiene relación con ninguna universidad, institución o entidad. Cualquier similitud de nombre es puramente coincidental.<br><br>
+          9. <strong style="color:var(--text)">Modificaciones:</strong> El administrador puede modificar estos términos en cualquier momento. El uso continuado implica aceptación.<br><br>
+          <a href="{{ url_for('terms') }}" target="_blank" style="color:var(--blue-l)">→ Leer términos completos</a>
+        </div>
+        <div id="tc-hint" style="font-size:11px;color:var(--amber);margin-top:5px">
+          ↓ Desplázate hasta el final para continuar
+        </div>
+        <label id="tc-check-label" style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer;opacity:.4;pointer-events:none">
+          <input type="checkbox" id="tc-checkbox" name="terms_accepted" value="1" required
+            style="width:auto;margin:0">
+          <span style="font-size:12px;color:var(--text2)">He leído y acepto los Términos y Condiciones</span>
+        </label>
+      </div>
+
+      <button type="submit" id="submit-btn" class="btn btn-primary btn-full" style="margin-top:6px" disabled>Crear cuenta</button>
     </form>
   </div>
   <div style="text-align:center;font-size:13px;color:var(--text3);margin-top:14px">
     <a href="{{ url_for('login') }}">← Volver al login</a>
   </div>
 </div>
+
+<script>
+function checkScroll(el) {
+  // Se considera "leído" cuando el scroll llega al 95% del contenido
+  var reached = el.scrollTop + el.clientHeight >= el.scrollHeight * 0.95;
+  if (reached) {
+    document.getElementById('tc-hint').style.display = 'none';
+    var label = document.getElementById('tc-check-label');
+    label.style.opacity = '1';
+    label.style.pointerEvents = 'auto';
+  }
+}
+
+document.getElementById('tc-checkbox').addEventListener('change', function() {
+  document.getElementById('submit-btn').disabled = !this.checked;
+});
+</script>
 {% endblock %}

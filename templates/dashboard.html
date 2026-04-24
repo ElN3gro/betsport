@@ -25,9 +25,19 @@
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
     <div>
       <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">
-        {{ '⚽' if ev['sport']=='futbol' else '🏀' }} {{ ev['league'] }}
+        {{ '⚽' if ev['sport'] in ('futbol','fútbol','football','soccer') else '🏀' if ev['sport'] in ('basketball','basquetbol') else '🎮' }} {{ ev['league'] }}
       </div>
       <div style="font-size:18px;font-weight:600">{{ ev['home'] }} <span style="color:var(--text3);font-size:13px">vs</span> {{ ev['away'] }}</div>
+      {% set sh = ev.get('score_home', 0) %}
+      {% set sa = ev.get('score_away', 0) %}
+      {% if sh > 0 or sa > 0 %}
+      <div style="margin-top:6px;display:inline-flex;align-items:center;gap:8px;background:var(--bg3);border-radius:6px;padding:4px 12px">
+        <span style="font-size:11px;color:var(--text3)">{{ ev.get('score_label','Marcador') }}</span>
+        <span style="font-size:18px;font-weight:700;color:var(--text)">{{ sh }}</span>
+        <span style="color:var(--text3)">—</span>
+        <span style="font-size:18px;font-weight:700;color:var(--text)">{{ sa }}</span>
+      </div>
+      {% endif %}
     </div>
     <div style="text-align:right">
       {% if ev['status'] == 'open' %}
