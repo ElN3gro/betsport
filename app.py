@@ -2,6 +2,9 @@
 APUSM — Plataforma de apuestas deportivas
 Flask + PostgreSQL | Render-ready | Pagos en efectivo
 """
+import eventlet
+eventlet.monkey_patch()
+
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from flask_socketio import SocketIO, emit
 from functools import wraps
