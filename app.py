@@ -176,9 +176,11 @@ def init_db():
             ("score_label", "TEXT NOT NULL DEFAULT 'Marcador'"),
         ]:
             try:
+                cur.execute("SAVEPOINT migration")
                 cur.execute(f"ALTER TABLE events ADD COLUMN {col} {definition}")
+                cur.execute("RELEASE SAVEPOINT migration")
             except Exception:
-                pass  # columna ya existe
+                cur.execute("ROLLBACK TO SAVEPOINT migration")  # columna ya existe
         # Admin por defecto
         cur.execute("SELECT id FROM users WHERE role='admin'")
         if not cur.fetchone():
