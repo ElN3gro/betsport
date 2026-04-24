@@ -343,6 +343,7 @@ def request_entry(eid):
     finally:
         conn.close()
     flash(f"Solicitud enviada. Paga ${ev['entry_fee']:,.0f} en efectivo al admin.", "info")
+    emit_update("new_entry_request")
     return redirect(url_for("dashboard"))
 
 # ── SOLICITAR APUESTA ─────────────────────────────────────────────────────────
@@ -373,6 +374,7 @@ def request_bet(eid):
     finally:
         conn.close()
     flash(f"Solicitud enviada: ${amount:,.0f} a '{odd_row['label']}' @ {odd_row['odd']:.2f}x.", "info")
+    emit_update("new_bet_request")
     return redirect(url_for("dashboard"))
 
 # ── CANCELAR SOLICITUD DE APUESTA ─────────────────────────────────────────────
