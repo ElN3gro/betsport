@@ -1082,16 +1082,20 @@ def finish_event(eid):
         fp_home = fetchall(conn, "SELECT * FROM field_players WHERE event_id=? AND team_key='home'", (eid,))
         fp_away = fetchall(conn, "SELECT * FROM field_players WHERE event_id=? AND team_key='away'", (eid,))
         if winner_key == "draw":
-            extra = sum(p["entry_paid"] for p in fp_home) + sum(p["entry_paid"] for p in fp_away) + field_bonus
+            extra = sum(p["entry_paid"] for p in fp_home) + sum(p["entry_paid"] for p in fp_away)
+            if field_bonus > 0:
+                execute(conn, "INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
+                    (eid, field_bonus, "profit", f"Corte de cancha {field_cut_pct*100:.0f}% (empate)", now()))
             if extra > 0:
                 execute(conn, "INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
-                    (eid, extra, "cancha", "Empate: todo va a casa", now()))
+                    (eid, extra, "cancha", "Empate: cuotas van a casa", now()))
         else:
             winner_fp = fp_home if winner_key == "home" else fp_away
             loser_fp  = fp_away if winner_key == "home" else fp_home
             n = len(winner_fp)
             if n > 0:
-                fondo = sum(p["entry_paid"] for p in winner_fp) + sum(p["entry_paid"] for p in loser_fp) + field_bonus
+                # fondo = solo cuotas de entrada, el field_bonus ya salió del pool de ganancias
+                fondo = sum(p["entry_paid"] for p in winner_fp) + sum(p["entry_paid"] for p in loser_fp)
                 per_bruto = round(fondo / n, 2)
                 per = round50(per_bruto)
                 if round(per_bruto - per, 2) * n > 0:
@@ -1099,6 +1103,10 @@ def finish_event(eid):
                         (eid, round((per_bruto-per)*n, 2), "redondeo", f"Redondeo jugadores cancha", now()))
                 for p in winner_fp:
                     execute(conn, "UPDATE field_players SET payout=? WHERE id=?", (per, p["id"]))
+                # El field_bonus va a la casa, no a los jugadores de cancha
+                if field_bonus > 0:
+                    execute(conn, "INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
+                        (eid, field_bonus, "profit", f"Corte de cancha {field_cut_pct*100:.0f}% sobre perdedores ${losing_pool:,.0f}", now()))
             else:
                 extra = sum(p["entry_paid"] for p in loser_fp) + field_bonus
                 if extra > 0:
