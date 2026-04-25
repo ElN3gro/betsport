@@ -87,18 +87,54 @@ document.addEventListener('DOMContentLoaded', function() {
           {% if not br['saldo_ok'] %}
             <span style="color:var(--red);font-size:12px">✗ sin saldo</span>
           {% elif br['aprobable'] %}
-            <span style="color:var(--green);font-size:12px">✓ ${{ "%.0f"|format(br['disponible']) }}</span>
+            <span style="color:var(--green);font-size:12px">✓ la casa cubre</span>
           {% else %}
-            <span style="color:var(--red);font-size:12px">✗ casa insuf.</span>
+            <span style="color:var(--red);font-size:12px">✗ déficit ${{ "%.0f"|format(br['deficit']) }}</span>
           {% endif %}
         </td>
         <td style="font-size:11px;color:var(--text3)">{{ br['created_at'][:16] }}</td>
         <td>
           <form method="POST" action="{{ url_for('approve_bet_request', brid=br['id']) }}" style="display:inline">
-            <button class="btn btn-sm btn-success" {% if not br['aprobable'] %}title="Pool insuficiente"{% endif %}>✓ Aprobar</button>
+            <button class="btn btn-sm btn-success" {% if not br['aprobable'] %}style="opacity:.5" title="La casa no cubre esta apuesta"{% endif %}>✓ Aprobar</button>
           </form>
           <form method="POST" action="{{ url_for('reject_bet_request', brid=br['id']) }}" style="display:inline;margin-left:4px">
             <button class="btn btn-sm btn-danger">✗ Rechazar</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<!-- ── APUESTAS RECHAZADAS AUTOMÁTICAMENTE ─────────────────────── -->
+{% if rejected_auto_bets %}
+<div class="section-title">⚠️ Apuestas rechazadas por límite de cobertura</div>
+<div class="card" style="border-color:rgba(239,68,68,.25);padding:0;overflow:hidden">
+  <div style="padding:10px 16px;background:rgba(239,68,68,.08);font-size:12px;color:var(--text2)">
+    Estas apuestas fueron rechazadas automáticamente porque excedían la capacidad de pago de la casa al presionar "Aprobar todas". Puedes reactivarlas como pendientes si agregas más presupuesto.
+  </div>
+  <table>
+    <thead><tr><th>Jugador</th><th>Partido</th><th>Opción</th><th>Monto</th><th>Cuota</th><th>Fecha</th><th>Acciones</th></tr></thead>
+    <tbody>
+      {% for br in rejected_auto_bets %}
+      <tr>
+        <td>
+          <span style="font-weight:500">{{ br['full_name'] }}</span>
+          <div style="font-size:11px;color:var(--text3)">@{{ br['username'] }}</div>
+        </td>
+        <td style="font-size:12px">{{ br['home'] }} vs {{ br['away'] }}</td>
+        <td><span class="badge badge-open">{{ br['option_label'] }}</span></td>
+        <td style="font-weight:600;color:var(--blue-l)">${{ "%.0f"|format(br['amount']) }}</td>
+        <td style="color:var(--amber)">{{ "%.2f"|format(br['odd_at_request']) }}x</td>
+        <td style="font-size:11px;color:var(--text3)">{{ br['created_at'][:16] }}</td>
+        <td>
+          <form method="POST" action="{{ url_for('reactivate_bet_request', brid=br['id']) }}" style="display:inline">
+            <button class="btn btn-sm btn-primary">↩ Reactivar</button>
+          </form>
+          <form method="POST" action="{{ url_for('reject_bet_request', brid=br['id']) }}" style="display:inline;margin-left:4px">
+            <button class="btn btn-sm btn-danger">✗ Descartar</button>
           </form>
         </td>
       </tr>

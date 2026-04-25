@@ -208,15 +208,21 @@ def admin_required(f):
     return d
 
 def recalc_auto_odds(conn, eid):
+    """Recalcula odds en modo auto para que la casa siempre pueda pagar.
+    El multiplicador de cada opción se calcula con el pool perdedor + house_budget
+    como respaldo, descontando los cortes."""
     ev   = fetchone(conn, "SELECT * FROM events WHERE id=?", (eid,))
     odds = fetchall(conn, "SELECT * FROM event_odds WHERE event_id=? ORDER BY CASE option_key WHEN 'home' THEN 1 WHEN 'draw' THEN 2 WHEN 'away' THEN 3 END", (eid,))
     total_pool = sum(o["total_bet"] for o in odds)
-    cuts = HOUSE_CUT + ev["field_cut_pct"]
+    cuts       = HOUSE_CUT + ev["field_cut_pct"]
+    house      = ev["house_budget"]
     for o in odds:
         if o["total_bet"] > 0 and total_pool > 0:
-            losing  = total_pool - o["total_bet"]
-            new_odd = round(1 + losing * (1 - cuts) / o["total_bet"], 2)
-            new_odd = max(MIN_ODD, min(99.0, new_odd))
+            losing   = total_pool - o["total_bet"]
+            respaldo = losing * (1 - cuts) + house
+            # Odd máximo que la casa puede pagar sin déficit
+            safe_odd = round(1 + respaldo / o["total_bet"], 2)
+            new_odd  = max(MIN_ODD, min(safe_odd, 99.0))
         else:
             new_odd = o["odd"]
         execute(conn, "UPDATE event_odds SET odd=? WHERE id=?", (new_odd, o["id"]))
@@ -429,7 +435,7 @@ def admin_panel():
             FROM cash_requests cr JOIN users u ON cr.user_id=u.id
             WHERE cr.status='pending' ORDER BY cr.created_at""")
         raw_bets = fetchall(conn, """SELECT br.*,u.username,u.full_name,u.phone,
-            e.home,e.away,e.league,e.sport
+            e.home,e.away,e.league,e.sport,e.house_budget,e.field_cut_pct
             FROM bet_requests br JOIN users u ON br.user_id=u.id
             JOIN events e ON br.event_id=e.id
             WHERE br.status='pending' ORDER BY br.event_id, br.created_at""")
@@ -438,8 +444,33 @@ def admin_panel():
             odd_row = fetchone(conn, "SELECT odd FROM event_odds WHERE event_id=? AND option_key=?", (br["event_id"], br["option_key"]))
             current_odd = odd_row["odd"] if odd_row else 1.0
             locked_odd  = br["odd_at_request"] if br["odd_at_request"] > 1.0 else current_odd
+            potential   = round(br["amount"] * locked_odd, 2)
+            # Calcular si esta apuesta individual es aprobable con el presupuesto actual
+            all_odds_r = fetchall(conn, "SELECT * FROM event_odds WHERE event_id=?", (br["event_id"],))
+            g_por_op   = {o["option_key"]: fetchone(conn,
+                "SELECT COALESCE(SUM(potential-amount),0) as t FROM bets WHERE event_id=? AND option_key=? AND result='pending'",
+                (br["event_id"], o["option_key"]))["t"] for o in all_odds_r}
+            p_por_op   = {o["option_key"]: fetchone(conn,
+                "SELECT COALESCE(SUM(amount),0) as t FROM bets WHERE event_id=? AND option_key=? AND result='pending'",
+                (br["event_id"], o["option_key"]))["t"] for o in all_odds_r}
+            g_por_op[br["option_key"]] = g_por_op.get(br["option_key"], 0) + round(potential - br["amount"], 2)
+            p_por_op[br["option_key"]] = p_por_op.get(br["option_key"], 0) + br["amount"]
+            peor = 0.0
+            for okey in {o["option_key"] for o in all_odds_r}:
+                pool_perd = sum(v for k,v in p_por_op.items() if k != okey)
+                neto      = round(pool_perd * (1 - br["field_cut_pct"]), 2)
+                deficit   = round(g_por_op.get(okey,0) - (neto + br["house_budget"]), 2)
+                if deficit > peor: peor = deficit
+            aprobable = peor <= 0.01
             pending_bets.append({**dict(br), "current_odd": current_odd, "locked_odd": locked_odd,
-                "potential": round(br["amount"] * locked_odd, 2), "aprobable": True})
+                "potential": potential, "aprobable": aprobable, "deficit": round(peor,2)})
+
+        # Apuestas rechazadas automáticamente (el admin puede reactivarlas)
+        rejected_auto_bets = fetchall(conn, """SELECT br.*,u.username,u.full_name,
+            e.home,e.away,e.league
+            FROM bet_requests br JOIN users u ON br.user_id=u.id
+            JOIN events e ON br.event_id=e.id
+            WHERE br.status='rejected_auto' ORDER BY br.event_id, br.created_at DESC LIMIT 50""")
         edata = []
         for ev in fetchall(conn, "SELECT * FROM events ORDER BY created_at DESC"):
             odds    = fetchall(conn, "SELECT * FROM event_odds WHERE event_id=? ORDER BY CASE option_key WHEN 'home' THEN 1 WHEN 'draw' THEN 2 WHEN 'away' THEN 3 END", (ev["id"],))
@@ -456,7 +487,8 @@ def admin_panel():
     finally:
         conn.close()
     return render_template("admin.html", tokens=tokens, players=players, all_users=all_users,
-        pending_entries=pending_entries, pending_bets=pending_bets, edata=edata, house_total=house_total)
+        pending_entries=pending_entries, pending_bets=pending_bets,
+        rejected_auto_bets=rejected_auto_bets, edata=edata, house_total=house_total)
 
 # ── TOKENS ─────────────────────────────────────────────────────────────────────
 
@@ -571,14 +603,14 @@ def create_event():
         odd_home = float(f.get("odd_home", 1.90))
         odd_away = float(f.get("odd_away", 2.00))
         odd_draw = None
-    if odds_mode == "auto":
-        odd_home = 2.00; odd_draw = 3.00 if has_draw else None; odd_away = 2.00
+    # En modo auto los odds iniciales son los que el admin ingresó;
+    # el sistema los recalcula dinámicamente con cada apuesta aprobada.
 
     conn = get_db()
     try:
         eid = lastrowid(conn, """INSERT INTO events
             (sport,home,away,league,entry_fee,house_budget,pool,status,field_cut_pct,odds_mode,created_at)
-            VALUES (?,?,?,?,?,?,0,'open',?,?,?)""",
+            VALUES (?,?,?,?,?,?,0,'closed',?,?,?)""",
             (sport, home, away, league, entry_fee, initial_budget, field_cut_pct, odds_mode, now()))
         if initial_budget > 0:
             execute(conn, "INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
@@ -833,16 +865,79 @@ def approve_bet_request(brid):
 def approve_all_bets(eid):
     conn = get_db()
     try:
-        pending = fetchall(conn, "SELECT id FROM bet_requests WHERE event_id=? AND status='pending' ORDER BY created_at", (eid,))
-        aprobadas = rechazadas = 0
-        for row in pending:
-            ok, _ = _do_approve_bet(conn, row["id"])
+        pending = fetchall(conn,
+            "SELECT * FROM bet_requests WHERE event_id=? AND status='pending' ORDER BY amount ASC",
+            (eid,))
+
+        # ── Simulación previa: calcular qué apuestas la casa puede cubrir ──────
+        ev            = fetchone(conn, "SELECT * FROM events WHERE id=?", (eid,))
+        all_odds_rows = fetchall(conn,
+            "SELECT * FROM event_odds WHERE event_id=? ORDER BY CASE option_key WHEN 'home' THEN 1 WHEN 'draw' THEN 2 WHEN 'away' THEN 3 END",
+            (eid,))
+        field_cut = ev["field_cut_pct"]
+
+        # Estado simulado acumulado: ganancias y pools por opción
+        sim_ganancias = {o["option_key"]: fetchone(conn,
+            "SELECT COALESCE(SUM(potential-amount),0) as t FROM bets WHERE event_id=? AND option_key=? AND result='pending'",
+            (eid, o["option_key"]))["t"] for o in all_odds_rows}
+        sim_pool      = {o["option_key"]: fetchone(conn,
+            "SELECT COALESCE(SUM(amount),0) as t FROM bets WHERE event_id=? AND option_key=? AND result='pending'",
+            (eid, o["option_key"]))["t"] for o in all_odds_rows}
+        sim_house     = ev["house_budget"]
+
+        safe_ids   = []  # IDs que se pueden aprobar
+        unsafe_ids = []  # IDs que exceden la capacidad
+
+        for br in pending:
+            odd_row    = next((o for o in all_odds_rows if o["option_key"] == br["option_key"]), None)
+            if not odd_row:
+                unsafe_ids.append(br["id"]); continue
+            locked_odd = br["odd_at_request"] if br["odd_at_request"] > 1.0 else odd_row["odd"]
+            amount     = br["amount"]
+            potential  = round(amount * locked_odd, 2)
+            ganancia   = round(potential - amount, 2)
+
+            # Simular esta apuesta
+            sim_g_new = dict(sim_ganancias); sim_g_new[br["option_key"]] = sim_g_new.get(br["option_key"], 0) + ganancia
+            sim_p_new = dict(sim_pool);     sim_p_new[br["option_key"]] = sim_p_new.get(br["option_key"], 0) + amount
+
+            # Calcular peor déficit posible si se aprueba
+            peor_deficit = 0.0
+            for okey in {o["option_key"] for o in all_odds_rows}:
+                pool_perdedor = sum(v for k, v in sim_p_new.items() if k != okey)
+                pool_neto     = round(pool_perdedor * (1 - field_cut), 2)
+                ganancias_ok  = sim_g_new.get(okey, 0)
+                deficit       = round(ganancias_ok - (pool_neto + sim_house), 2)
+                if deficit > peor_deficit:
+                    peor_deficit = deficit
+
+            if peor_deficit <= 0.01:
+                safe_ids.append(br["id"])
+                # Actualizar estado simulado para la siguiente iteración
+                sim_ganancias = sim_g_new
+                sim_pool      = sim_p_new
+            else:
+                unsafe_ids.append(br["id"])
+
+        # ── Aprobar solo las seguras ──────────────────────────────────────────
+        aprobadas = rechazadas_auto = 0
+        for brid in safe_ids:
+            ok, _ = _do_approve_bet(conn, brid)
             if ok: aprobadas += 1
-            else:  rechazadas += 1
+
+        # Rechazar las que no caben (no eliminar, marcar como rejected)
+        for brid in unsafe_ids:
+            execute(conn, "UPDATE bet_requests SET status='rejected_auto' WHERE id=?", (brid,))
+            rechazadas_auto += 1
+
         conn.commit()
     finally:
         conn.close()
-    flash(f"{aprobadas} aprobadas, {rechazadas} rechazadas.", "success" if rechazadas == 0 else "info")
+
+    msg = f"{aprobadas} aprobadas"
+    if rechazadas_auto:
+        msg += f", {rechazadas_auto} rechazadas automáticamente por límite de cobertura"
+    flash(msg, "success" if not rechazadas_auto else "info")
     emit_update("bet_approved")
     return redirect(url_for("admin_panel"))
 
@@ -858,6 +953,20 @@ def reject_bet_request(brid):
         conn.close()
     flash("Solicitud rechazada.", "info")
     emit_update("bet_rejected")
+    return redirect(url_for("admin_panel"))
+
+@app.route("/admin/bet_request/<int:brid>/reactivate", methods=["POST"])
+@login_required
+@admin_required
+def reactivate_bet_request(brid):
+    conn = get_db()
+    try:
+        execute(conn, "UPDATE bet_requests SET status='pending' WHERE id=? AND status='rejected_auto'", (brid,))
+        conn.commit()
+    finally:
+        conn.close()
+    flash("Apuesta reactivada como pendiente.", "success")
+    emit_update("new_bet_request")
     return redirect(url_for("admin_panel"))
 
 # ── APROBAR / RECHAZAR PAGOS DE ENTRADA ───────────────────────────────────────
