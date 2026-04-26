@@ -486,11 +486,17 @@ def admin_panel():
                 "total_field_away": sum(p["entry_paid"] for p in fp_away),
                 "pending_bets_count": pcount})
         house_total = fetchone(conn, "SELECT COALESCE(SUM(amount),0) as t FROM house_log WHERE type='profit'")["t"]
+        try:
+            cs_row = fetchone(conn, "SELECT value FROM settings WHERE key='casino_enabled'")
+            casino_enabled = cs_row and cs_row['value'] == '1'
+        except Exception:
+            casino_enabled = False
     finally:
         conn.close()
     return render_template("admin.html", tokens=tokens, players=players, all_users=all_users,
         pending_entries=pending_entries, pending_bets=pending_bets,
-        rejected_auto_bets=rejected_auto_bets, edata=edata, house_total=house_total)
+        rejected_auto_bets=rejected_auto_bets, edata=edata, house_total=house_total,
+        casino_enabled=casino_enabled)
 
 # ── TOKENS ─────────────────────────────────────────────────────────────────────
 
