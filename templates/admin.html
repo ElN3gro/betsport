@@ -61,17 +61,17 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 
 <!-- ── CASINO TOGGLE ────────────────────────────────────────── -->
-<div class="card" style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;margin-bottom:16px;border-color:{% if casino_enabled %}rgba(34,197,94,.3){% else %}rgba(255,255,255,.07){% endif %}">
+<div class="card" style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;margin-bottom:4px;border-color:{% if casino_enabled %}rgba(34,197,94,.3){% else %}rgba(255,255,255,.07){% endif %}">
   <div style="display:flex;align-items:center;gap:12px">
     <span style="font-size:24px">🎰</span>
     <div>
       <div style="font-size:14px;font-weight:600">Casino APUSM</div>
       <div style="font-size:12px;color:var(--text3)">
-        Estado actual:
+        Estado:
         {% if casino_enabled %}
-          <span style="color:var(--green);font-weight:600">● Habilitado</span> — los jugadores pueden acceder al casino
+          <span style="color:var(--green);font-weight:600">● Habilitado</span> — jugadores pueden entrar al casino
         {% else %}
-          <span style="color:var(--text3);font-weight:600">○ Deshabilitado</span> — los jugadores no ven el casino
+          <span style="color:var(--text3);font-weight:600">○ Deshabilitado</span> — casino oculto para jugadores
         {% endif %}
       </div>
     </div>
@@ -751,10 +751,6 @@ function fillFees(eid, side, val) {
   inputs.forEach(function(inp) { inp.value = val; });
 }
 
-<form method="POST" action="/admin/casino/toggle">
-  <button class="btn btn-primary">🎰 Habilitar / Deshabilitar Casino</button>
-</form>
-  
 // Inicializar todas las tablas con 1 fila vacía al cargar
 document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('[id^="n_"]').forEach(function(el) {
