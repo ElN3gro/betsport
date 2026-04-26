@@ -207,6 +207,14 @@ def bj_resolve_room(conn, rid, fetchone_fn, execute_fn, house_log_fn):
     r["results"]     = results
     r["dealer_hand"] = dealer
     set_room(rid, r)
+
+    # Notificar a todos en la sala el resultado final
+    try:
+        from app import socketio as sio
+        sio.emit("casino_state", r, room=rid)
+    except Exception:
+        pass
+
     return results
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -383,12 +391,34 @@ def api_bj_bet():
     if "user_id" not in session: return jsonify({"ok":False,"msg":"Sin sesión"})
     data  = request.get_json()
     rid   = data.get("rid"); uid = str(session["user_id"])
-    bet   = int(data.get("bet",0))
+    bet   = int(data.get("bet", 0))
     r     = get_room(rid)
     if not r or uid not in r["players"]:
         return jsonify({"ok":False,"msg":"Sala inválida"})
     if bet < CASINO_MIN_BET or bet > CASINO_MAX_BET:
         return jsonify({"ok":False,"msg":f"Apuesta entre ${CASINO_MIN_BET} y ${CASINO_MAX_BET}"})
+
+    # Si la sala terminó, resetearla para nueva ronda antes de aceptar apuesta
+    if r["status"] == "finished":
+        r["status"]       = "waiting"
+        r["dealer_hand"]  = []
+        r["results"]      = {}
+        r["current_turn"] = None
+        r["turn_order"]   = []
+        for p in r["players"].values():
+            p["bet"]     = 0
+            p["hand"]    = []
+            p["hand2"]   = []
+            p["status"]  = "waiting"
+            p["split"]   = False
+            p["doubled"] = False
+            p["bet2"]    = 0
+        set_room(rid, r)
+
+    # Solo aceptar apuesta si la sala está esperando
+    if r["status"] != "waiting":
+        return jsonify({"ok":False,"msg":"La ronda ya comenzó, espera la siguiente"})
+
     # Verificar saldo
     from app import fetchone as fo, execute as ex, get_db
     conn = get_db()
@@ -396,15 +426,20 @@ def api_bj_bet():
     conn.close()
     if not user or user["balance"] < bet:
         return jsonify({"ok":False,"msg":"Saldo insuficiente"})
-    r["players"][uid]["bet"] = bet
+
+    r["players"][uid]["bet"]    = bet
+    r["players"][uid]["status"] = "waiting"
+
     # Descontar apuesta inmediatamente
     conn = get_db()
     ex(conn, "UPDATE users SET balance=balance-? WHERE id=?", (bet, session["user_id"]))
     conn.commit(); conn.close()
-    # Si todos apostaron, repartir
-    all_bet = all(p["bet"]>0 for p in r["players"].values())
-    if all_bet and r["status"]=="waiting":
+
+    # Si TODOS los jugadores ya apostaron → repartir
+    all_bet = all(p["bet"] > 0 for p in r["players"].values())
+    if all_bet:
         bj_deal_room(rid)
+
     set_room(rid, r)
     return jsonify({"ok":True,"room":_sanitize_room(rid, uid)})
 
@@ -471,7 +506,10 @@ def _bj_advance_turn(rid):
 
 def _bj_all_done(rid):
     r = get_room(rid)
-    return all(p["status"] != "playing" for p in r["players"].values())
+    if r["status"] != "playing": return False
+    # Solo cuenta jugadores que están en juego activo (no los que están en "waiting" o sin mano)
+    playing = [p for p in r["players"].values() if p.get("hand")]
+    return bool(playing) and all(p["status"] != "playing" for p in playing)
 
 @casino.route("/api/casino/roulette/spin", methods=["POST"])
 def api_roulette_spin():

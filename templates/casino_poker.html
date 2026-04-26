@@ -204,11 +204,12 @@ function renderRoom(r){
   const waitingZ = document.getElementById('waiting-zone');
 
   if(phase==='waiting'||phase==='finished'){
-    const isAnyPlayer = Object.keys(r.players||{}).length >= 2;
-    startZ.style.display = isAnyPlayer ? 'block' : 'none';
+    const playerCount = Object.keys(r.players||{}).length;
+    startZ.style.display = playerCount >= 2 ? 'block' : 'none';
     actionZ.style.display  = 'none';
-    waitingZ.style.display = isAnyPlayer ? 'none' : 'block';
-    if(!isAnyPlayer) waitingZ.textContent = 'Esperando más jugadores…';
+    waitingZ.style.display = playerCount >= 2 ? 'none' : 'block';
+    if(playerCount < 2) waitingZ.textContent = 'Esperando más jugadores…';
+    if(phase==='finished') document.getElementById('pk-msg').textContent = r.winner ? `🏆 Ganador: ${r.players?.[r.winner]?.name||'?'} — +$${(r.payout||0).toLocaleString()}` : '';
     return;
   }
 

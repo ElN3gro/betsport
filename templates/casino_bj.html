@@ -256,23 +256,30 @@ function renderRoom(r){
 
   if(r.status==='finished'){
     chipRow.style.display='flex'; playActions.style.display='none';
-    confirmBtn.style.display='none';
     const res = r.results?.[MY_UID+'_hand'];
     if(res){
-      const msgs = {win:`✓ Ganaste $${res.payout.toLocaleString()}`,blackjack:`🃏 ¡BLACKJACK! +$${res.payout.toLocaleString()}`,
-        lose:'✗ Perdiste',bust:'💥 Bust — perdiste',push:'↩ Empate — apuesta devuelta',dealer_bj:'Dealer tiene Blackjack'};
-      bjMsg.textContent = msgs[res.result]||'';
+      const msgs = {
+        win:       `✓ Ganaste $${res.payout.toLocaleString()}`,
+        blackjack: `🃏 ¡BLACKJACK! +$${res.payout.toLocaleString()}`,
+        lose:      '✗ Perdiste',
+        bust:      '💥 Bust — perdiste',
+        push:      `↩ Empate — te devuelven $${res.payout.toLocaleString()}`,
+        dealer_bj: 'Dealer tiene Blackjack'
+      };
+      bjMsg.textContent = msgs[res.result] || '';
     }
-    status.textContent = 'Ronda terminada. Apuesta de nuevo para otra mano.';
-    currentBet=0; document.getElementById('bet-display').textContent='$0';
-    confirmBtn.style.display='inline-flex';
-    setTimeout(()=>{location.reload()},4000);
+    status.textContent = 'Ronda terminada. Elige tu apuesta para la siguiente mano.';
+    currentBet = 0;
+    document.getElementById('bet-display').textContent = '$0';
+    confirmBtn.style.display = 'inline-flex';
+    confirmBtn.textContent   = '▶ Nueva mano';
     return;
   }
 
   if(r.status==='waiting' || !me || me.bet===0){
     chipRow.style.display='flex'; playActions.style.display='none';
     confirmBtn.style.display='inline-flex';
+    confirmBtn.textContent = 'Confirmar apuesta';
     status.textContent = 'Elige tu apuesta y confirma.'; bjMsg.textContent='';
     return;
   }
@@ -299,14 +306,7 @@ function renderRoom(r){
 socket.on('casino_state', renderRoom);
 socket.emit('casino_join_room', {rid: RID});
 
-// Cargar estado inicial
-(async()=>{
-  const res = await fetch('/api/casino/bj/bet', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({rid:RID, bet:0, peek:true})
-  }).catch(()=>null);
-  // Render inicial con datos del server
-  renderRoom({{ room | tojson }});
-})();
+// Render inicial desde el servidor (sin fetch extra)
+renderRoom({{ room | tojson }});
 </script>
 {% endblock %}
