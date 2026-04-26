@@ -728,6 +728,10 @@ function fillFees(eid, side, val) {
   inputs.forEach(function(inp) { inp.value = val; });
 }
 
+<form method="POST" action="/admin/casino/toggle">
+  <button class="btn btn-primary">🎰 Habilitar / Deshabilitar Casino</button>
+</form>
+  
 // Inicializar todas las tablas con 1 fila vacía al cargar
 document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('[id^="n_"]').forEach(function(el) {
