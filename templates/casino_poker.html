@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+{% block title %}Póker — APUSM Casino{% endblock %}
+{% block content %}
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@300;400;500&display=swap');
+  :root{ --felt:#0a1628;--felt2:#0d2040;--gold:#c9a84c;--gold2:#e8c97e }
+
+  .pk-wrap{ max-width:900px;margin:0 auto;padding:20px 12px }
+  .pk-table{
+    background:radial-gradient(ellipse at 50% 40%,var(--felt2) 0%,var(--felt) 70%,#050d1a 100%);
+    border:4px solid #8B6914;border-radius:24px;padding:24px;
+    box-shadow:0 0 60px rgba(0,0,0,.8);min-height:500px;
+  }
+  .pk-title{ text-align:center;font-family:'Playfair Display',serif;font-size:13px;
+    color:rgba(201,168,76,.5);letter-spacing:3px;text-transform:uppercase;margin-bottom:20px }
+
+  /* Comunidad */
+  .community-zone{ text-align:center;margin-bottom:28px }
+  .community-cards{ display:flex;gap:10px;justify-content:center;flex-wrap:wrap;min-height:90px;align-items:center }
+
+  .card{
+    width:58px;height:82px;background:#fdfcf5;border-radius:7px;
+    display:flex;align-items:center;justify-content:center;
+    font-size:22px;font-weight:700;color:#111;
+    box-shadow:2px 3px 8px rgba(0,0,0,.6);
+    border:1px solid rgba(0,0,0,.1);
+    animation:dealCard .25s ease-out;
+  }
+  .card.red{ color:#c0392b }
+  .card.back{
+    background:linear-gradient(135deg,#1a3a8f 25%,#0d2466 75%);
+    font-size:0;
+  }
+  .card.back::after{ content:'🂠';font-size:42px;color:rgba(255,255,255,.3) }
+  @keyframes dealCard{ from{transform:translateY(-20px) scale(.8);opacity:0} to{transform:none;opacity:1} }
+
+  .pot-display{
+    text-align:center;font-family:'Playfair Display',serif;font-size:24px;
+    color:var(--gold2);margin:8px 0;
+  }
+  .pot-label{ font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:2px }
+
+  /* Jugadores */
+  .players-grid{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));
+    gap:12px;margin-bottom:20px;
+  }
+  .player-seat{
+    background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.1);
+    border-radius:12px;padding:12px;text-align:center;
+  }
+  .player-seat.active{ border-color:var(--gold);box-shadow:0 0 14px rgba(201,168,76,.25) }
+  .player-seat.folded{ opacity:.4 }
+  .player-seat.winner{ border-color:#2ecc71;box-shadow:0 0 16px rgba(46,204,113,.3) }
+  .seat-name{ font-size:11px;color:var(--text3);margin-bottom:6px }
+  .seat-chips{ font-size:14px;color:var(--gold);font-weight:600 }
+  .seat-bet{ font-size:11px;color:var(--text2);margin-top:3px }
+  .seat-hand{ display:flex;gap:5px;justify-content:center;margin:8px 0 }
+  .seat-status{ font-size:11px;margin-top:5px }
+
+  /* Controles */
+  .pk-controls{
+    background:rgba(0,0,0,.4);border-radius:12px;padding:14px;
+    display:flex;flex-direction:column;gap:10px;
+  }
+  .action-row{ display:flex;gap:8px;justify-content:center;flex-wrap:wrap }
+  .btn-pk{
+    padding:10px 20px;border-radius:8px;font-weight:600;font-size:13px;
+    cursor:pointer;border:none;font-family:'DM Sans',sans-serif;transition:filter .15s;
+  }
+  .btn-pk:hover{ filter:brightness(1.15) }
+  .btn-pk:disabled{ opacity:.3;cursor:not-allowed }
+  .btn-fold{ background:#c0392b;color:#fff }
+  .btn-check{ background:#2471a3;color:#fff }
+  .btn-call{ background:#239b56;color:#fff }
+  .btn-raise{ background:#f39c12;color:#111 }
+  .btn-allin{ background:linear-gradient(135deg,#8e44ad,#c0392b);color:#fff }
+  .btn-start{ background:linear-gradient(135deg,var(--gold),#a07730);color:#111;font-size:15px;width:100% }
+
+  .raise-row{ display:flex;gap:8px;align-items:center;justify-content:center }
+  .raise-input{
+    width:120px;padding:8px 12px;background:rgba(255,255,255,.08);
+    border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:14px;
+  }
+  .pk-msg{ text-align:center;font-family:'Playfair Display',serif;
+    font-size:16px;color:var(--gold2);padding:10px;min-height:24px }
+  .phase-badge{
+    display:inline-block;background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);
+    border-radius:20px;padding:4px 14px;font-size:11px;color:var(--gold);
+    text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;
+  }
+
+  .back-link{ display:block;text-align:center;margin-top:16px;color:var(--text3);font-size:13px }
+</style>
+
+<div class="pk-wrap">
+  <div class="pk-table">
+    <div class="pk-title">♠ Texas Hold'em · Rake 5% · Máx $500 ♠</div>
+
+    <!-- Fase y comunidad -->
+    <div class="community-zone">
+      <div class="phase-badge" id="phase-badge">Esperando jugadores</div>
+      <div class="community-cards" id="community-cards">
+        <div style="color:rgba(255,255,255,.2);font-size:13px">Las cartas comunitarias aparecerán aquí</div>
+      </div>
+      <div class="pot-label">Bote</div>
+      <div class="pot-display" id="pot-display">$0</div>
+    </div>
+
+    <!-- Jugadores -->
+    <div class="players-grid" id="players-grid"></div>
+
+    <!-- Mensaje -->
+    <div class="pk-msg" id="pk-msg"></div>
+
+    <!-- Controles -->
+    <div class="pk-controls">
+      <div id="start-zone" style="display:none">
+        <button class="btn-pk btn-start" onclick="startHand()">▶ Iniciar mano</button>
+      </div>
+      <div id="action-zone" style="display:none">
+        <div class="raise-row" style="margin-bottom:8px">
+          <input type="number" class="raise-input" id="raise-amount" placeholder="Monto raise" min="200" step="100" value="400">
+        </div>
+        <div class="action-row">
+          <button class="btn-pk btn-fold"  onclick="pkAction('fold')">Fold</button>
+          <button class="btn-pk btn-check" id="btn-check" onclick="pkAction('check')">Check</button>
+          <button class="btn-pk btn-call"  id="btn-call"  onclick="pkAction('call')">Call</button>
+          <button class="btn-pk btn-raise" onclick="pkAction('raise')">Raise</button>
+          <button class="btn-pk btn-allin" onclick="pkAction('allin')">All-in</button>
+        </div>
+      </div>
+      <div id="waiting-zone" style="text-align:center;color:var(--text3);font-size:13px;padding:10px">
+        Esperando a que sea tu turno…
+      </div>
+    </div>
+  </div>
+  <a href="{{ url_for('casino.casino_lobby') }}" class="back-link">← Volver al lobby</a>
+</div>
+
+<script>
+const RID    = "{{ rid }}";
+const MY_UID = "{{ uid }}";
+
+function cardHTML(c){
+  if(!c||c.rank==='?') return '<div class="card back"></div>';
+  const red = c.suit==='♥'||c.suit==='♦';
+  return `<div class="card${red?' red':''}">${c.rank}${c.suit}</div>`;
+}
+
+function renderRoom(r){
+  if(!r) return;
+  const myTurn = r.current_turn === MY_UID;
+  const phase  = r.phase||'waiting';
+  const me     = r.players?.[MY_UID];
+
+  // Fase
+  const labels = {waiting:'Esperando',preflop:'Pre-Flop',flop:'Flop',turn:'Turn',river:'River',showdown:'Showdown',finished:'Mano terminada'};
+  document.getElementById('phase-badge').textContent = labels[phase]||phase;
+
+  // Comunidad
+  const comm = r.community||[];
+  document.getElementById('community-cards').innerHTML = comm.length
+    ? comm.map(cardHTML).join('')
+    : '<div style="color:rgba(255,255,255,.2);font-size:13px">Las cartas comunitarias aparecerán aquí</div>';
+
+  document.getElementById('pot-display').textContent = '$'+(r.pot||0).toLocaleString();
+
+  // Jugadores
+  const grid = document.getElementById('players-grid');
+  grid.innerHTML = '';
+  for(const [uid, p] of Object.entries(r.players||{})){
+    const isMe = uid===MY_UID;
+    let cls = 'player-seat';
+    if(r.current_turn===uid) cls+=' active';
+    if(p.status==='folded') cls+=' folded';
+    if(r.winner===uid) cls+=' winner';
+    const handHTML = (p.hand||[]).map(c=> !isMe && phase!=='showdown' && phase!=='finished' ? '<div class="card back" style="width:36px;height:52px;font-size:0"></div>' : cardHTML(c)).join('');
+    let statusIcon = '';
+    if(p.action) statusIcon = {fold:'❌ Fold',check:'✓ Check',call:'📞 Call',raise:'⬆ Raise',allin:'🔥 All-in'}[p.action]||'';
+    if(r.winner===uid) statusIcon = `🏆 Ganador +$${(r.payout||0).toLocaleString()}`;
+    grid.innerHTML += `
+      <div class="${cls}">
+        <div class="seat-name">${isMe?'🟢 Tú':p.name}</div>
+        <div class="seat-chips">$${(p.chips||0).toLocaleString()}</div>
+        ${p.bet_total>0?`<div class="seat-bet">Apostado: $${p.bet_total.toLocaleString()}</div>`:''}
+        <div class="seat-hand">${handHTML}</div>
+        ${statusIcon?`<div class="seat-status">${statusIcon}</div>`:''}
+      </div>`;
+  }
+
+  // Mostrar categoría de mano en showdown
+  if(phase==='showdown'||phase==='finished'){
+    const handNames = ["High Card","One Pair","Two Pair","Three of a Kind","Straight","Flush","Full House","Four of a Kind","Straight Flush","Royal Flush"];
+    const myScore = r.scores?.[MY_UID];
+    if(myScore !== undefined){
+      document.getElementById('pk-msg').textContent = `Tu mano: ${handNames[myScore]||''}`;
+    }
+  }
+
+  // Controles
+  const startZ   = document.getElementById('start-zone');
+  const actionZ  = document.getElementById('action-zone');
+  const waitingZ = document.getElementById('waiting-zone');
+
+  if(phase==='waiting'||phase==='finished'){
+    const isAnyPlayer = Object.keys(r.players||{}).length >= 2;
+    startZ.style.display = isAnyPlayer ? 'block' : 'none';
+    actionZ.style.display  = 'none';
+    waitingZ.style.display = isAnyPlayer ? 'none' : 'block';
+    if(!isAnyPlayer) waitingZ.textContent = 'Esperando más jugadores…';
+    return;
+  }
+
+  if(myTurn && me && me.status==='active'){
+    startZ.style.display  = 'none';
+    actionZ.style.display = 'block';
+    waitingZ.style.display= 'none';
+    // Check vs Call
+    const toCall = (r.min_bet||0) - (me.bet_round||0);
+    const checkBtn = document.getElementById('btn-check');
+    const callBtn  = document.getElementById('btn-call');
+    if(toCall <= 0){
+      checkBtn.style.display='inline-flex'; checkBtn.disabled=false;
+      callBtn.style.display='none';
+    } else {
+      checkBtn.style.display='none';
+      callBtn.style.display='inline-flex';
+      callBtn.textContent=`Call $${toCall.toLocaleString()}`;
+    }
+  } else {
+    startZ.style.display  = 'none';
+    actionZ.style.display = 'none';
+    waitingZ.style.display= 'block';
+    const ct = r.players?.[r.current_turn];
+    waitingZ.textContent = ct ? `Turno de ${ct.name}…` : 'Procesando…';
+  }
+}
+
+async function startHand(){
+  const res = await fetch(`/api/casino/poker/start`,{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({rid:RID})
+  });
+  const d = await res.json();
+  if(!d.ok){ alert(d.msg||'Error'); return; }
+  renderRoom(d.room);
+}
+
+async function pkAction(action){
+  const amount = parseInt(document.getElementById('raise-amount').value)||0;
+  const res = await fetch('/api/casino/poker/action',{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({rid:RID, action, amount})
+  });
+  const d = await res.json();
+  if(!d.ok){ alert(d.msg||'Error'); return; }
+  renderRoom(d.room);
+}
+
+// Socket
+socket.on('casino_state', renderRoom);
+socket.emit('casino_join_room', {rid:RID});
+
+// Render inicial
+renderRoom({{ room | tojson }});
+</script>
+{% endblock %}

@@ -16,6 +16,8 @@ app.secret_key = os.environ.get("SECRET_KEY", "apusm-secret-cambia-esto-2024")
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
+from casino import register_casino, init_casino_tables
+
 HOUSE_CUT = 0.08
 FIELD_CUT = 0.07
 MIN_ODD   = 1.01
@@ -1286,10 +1288,60 @@ def update_score(eid):
     emit_update("score_updated")
     return redirect(url_for("admin_panel"))
 
+# ── CASINO ────────────────────────────────────────────────────────────────────
+
+@app.route("/api/casino/poker/start", methods=["POST"])
+@login_required
+def api_poker_start():
+    from casino import poker_start_hand, get_room, _sanitize_room
+    if not _casino_enabled(): return jsonify({"ok":False,"msg":"Casino deshabilitado"})
+    data = request.get_json()
+    rid  = data.get("rid")
+    ok   = poker_start_hand(rid)
+    if not ok: return jsonify({"ok":False,"msg":"Se necesitan al menos 2 jugadores"})
+    return jsonify({"ok":True,"room":_sanitize_room(rid, str(session["user_id"]))})
+
+@app.route("/admin/casino/toggle", methods=["POST"])
+@login_required
+@admin_required
+def toggle_casino():
+    conn = get_db()
+    try:
+        cur  = conn.cursor()
+        cur.execute("SAVEPOINT cs_setting")
+        try:
+            cur.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+            conn.commit()
+        except: cur.execute("ROLLBACK TO SAVEPOINT cs_setting")
+        current = fetchone(conn, "SELECT value FROM settings WHERE key='casino_enabled'")
+        new_val = '0' if current and current['value']=='1' else '1'
+        execute(conn, "INSERT INTO settings (key,value) VALUES ('casino_enabled',%s) ON CONFLICT (key) DO UPDATE SET value=%s",
+            (new_val, new_val))
+        conn.commit()
+    finally:
+        conn.close()
+    emit_update("event_updated")
+    flash(f"Casino {'habilitado' if new_val=='1' else 'deshabilitado'}.", "success")
+    return redirect(url_for("admin_panel"))
+
+def _casino_enabled():
+    try:
+        conn = get_db()
+        row  = fetchone(conn, "SELECT value FROM settings WHERE key='casino_enabled'")
+        conn.close()
+        return row and row['value']=='1'
+    except: return False
+
 # ── INIT ───────────────────────────────────────────────────────────────────────
 
 with app.app_context():
     init_db()
+    conn = get_db()
+    try:
+        init_casino_tables(conn)
+    finally:
+        conn.close()
+    register_casino(app, socketio)
 
 if __name__ == "__main__":
     socketio.run(app, debug=True, port=5000)

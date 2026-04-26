@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+{% block title %}Blackjack — APUSM Casino{% endblock %}
+{% block content %}
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@300;400;500&display=swap');
+  :root{ --felt:#0d3b2e;--felt2:#164a3a;--gold:#c9a84c;--gold2:#e8c97e;--card-bg:#fdfcf5;--card-txt:#111 }
+
+  .bj-wrap{ max-width:860px;margin:0 auto;padding:20px 12px }
+  .bj-table{
+    background:radial-gradient(ellipse at 50% 40%,var(--felt2) 0%,var(--felt) 60%,#07281e 100%);
+    border:4px solid #8B6914;border-radius:20px;padding:24px;
+    box-shadow:0 0 60px rgba(0,0,0,.8),inset 0 0 40px rgba(0,0,0,.4);
+    min-height:480px;position:relative;
+  }
+  .bj-table::before{
+    content:'';position:absolute;inset:6px;border:1px solid rgba(201,168,76,.2);
+    border-radius:14px;pointer-events:none;
+  }
+
+  .bj-title{ text-align:center;font-family:'Playfair Display',serif;font-size:13px;
+    color:rgba(201,168,76,.5);letter-spacing:3px;text-transform:uppercase;margin-bottom:20px }
+
+  /* Zona dealer */
+  .dealer-zone{ text-align:center;margin-bottom:28px }
+  .zone-label{ font-size:10px;color:rgba(255,255,255,.4);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px }
+  .hand{ display:flex;gap:8px;justify-content:center;flex-wrap:wrap;min-height:90px;align-items:center }
+
+  /* Carta */
+  .card{
+    width:58px;height:82px;background:var(--card-bg);border-radius:7px;
+    display:flex;align-items:center;justify-content:center;
+    font-size:22px;font-weight:700;color:var(--card-txt);
+    box-shadow:2px 3px 8px rgba(0,0,0,.6);
+    border:1px solid rgba(0,0,0,.1);position:relative;
+    animation:dealCard .25s ease-out;
+  }
+  .card.red{ color:#c0392b }
+  .card.back{
+    background:linear-gradient(135deg,#1a3a8f 25%,#0d2466 75%);
+    color:transparent;font-size:0;
+  }
+  .card.back::after{ content:'🂠';font-size:42px;color:rgba(255,255,255,.3) }
+  @keyframes dealCard{ from{transform:translateY(-20px) scale(.8);opacity:0} to{transform:none;opacity:1} }
+
+  .hand-val{ font-size:12px;color:rgba(255,255,255,.5);text-align:center;margin-top:6px }
+  .hand-val.bust{ color:#e74c3c }
+  .hand-val.bj{ color:var(--gold2) }
+
+  /* Zona jugadores */
+  .players-row{ display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin-bottom:20px }
+  .player-spot{
+    background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);
+    border-radius:12px;padding:12px;min-width:130px;text-align:center;
+  }
+  .player-spot.active{ border-color:var(--gold);box-shadow:0 0 12px rgba(201,168,76,.3) }
+  .player-spot.won{ border-color:#2ecc71 }
+  .player-spot.lost{ border-color:#e74c3c;opacity:.7 }
+  .player-name{ font-size:11px;color:var(--text3);margin-bottom:6px }
+  .player-bet{ font-size:13px;color:var(--gold);font-weight:600 }
+
+  /* Controles */
+  .bj-controls{
+    background:rgba(0,0,0,.4);border-radius:12px;padding:14px;
+    display:flex;flex-direction:column;gap:12px;
+  }
+  .bet-row{ display:flex;gap:8px;justify-content:center;flex-wrap:wrap }
+  .chip{
+    width:56px;height:56px;border-radius:50%;border:3px solid;
+    display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-weight:700;cursor:pointer;transition:transform .15s;
+    font-family:'DM Sans',sans-serif;
+  }
+  .chip:hover{ transform:scale(1.1) }
+  .chip.c100{ background:#c0392b;border-color:#e74c3c;color:#fff }
+  .chip.c500{ background:#2471a3;border-color:#3498db;color:#fff }
+  .chip.c1000{ background:#239b56;border-color:#27ae60;color:#fff }
+  .chip.c5000{ background:#7d3c98;border-color:#9b59b6;color:#fff }
+  .chip.c10000{ background:#d4ac0d;border-color:#f1c40f;color:#111 }
+
+  .action-row{ display:flex;gap:8px;justify-content:center;flex-wrap:wrap }
+  .btn-bj{
+    padding:10px 22px;border-radius:8px;font-weight:600;font-size:13px;
+    cursor:pointer;border:none;font-family:'DM Sans',sans-serif;transition:filter .15s;
+  }
+  .btn-bj:hover{ filter:brightness(1.15) }
+  .btn-hit{ background:#e74c3c;color:#fff }
+  .btn-stand{ background:#2471a3;color:#fff }
+  .btn-double{ background:#f39c12;color:#111 }
+  .btn-split{ background:#8e44ad;color:#fff }
+  .btn-bet{ background:linear-gradient(135deg,var(--gold),#a07730);color:#111 }
+  .btn-bj:disabled{ opacity:.35;cursor:not-allowed }
+
+  .bj-msg{
+    text-align:center;font-family:'Playfair Display',serif;font-size:18px;
+    color:var(--gold2);padding:12px;min-height:28px;
+  }
+  .bj-status{ text-align:center;font-size:12px;color:var(--text3);margin-bottom:8px }
+  .current-bet-display{ text-align:center;font-size:20px;color:var(--gold);font-weight:700;margin:6px 0 }
+
+  .back-link{ display:block;text-align:center;margin-top:16px;color:var(--text3);font-size:13px }
+</style>
+
+<div class="bj-wrap">
+  <div class="bj-table">
+    <div class="bj-title">♠ Blackjack · Paga 3:2 · Dealer planta en 17 ♠</div>
+
+    <!-- Dealer -->
+    <div class="dealer-zone">
+      <div class="zone-label">Dealer</div>
+      <div class="hand" id="dealer-hand">
+        <div style="color:rgba(255,255,255,.3);font-size:13px">Esperando...</div>
+      </div>
+      <div class="hand-val" id="dealer-val"></div>
+    </div>
+
+    <!-- Jugadores -->
+    <div class="players-row" id="players-row"></div>
+
+    <!-- Mensaje -->
+    <div class="bj-msg" id="bj-msg"></div>
+
+    <!-- Controles -->
+    <div class="bj-controls">
+      <div class="bj-status" id="bj-status">Elige tu apuesta</div>
+      <div class="current-bet-display" id="bet-display">$0</div>
+
+      <!-- Fichas -->
+      <div class="bet-row" id="chip-row">
+        <div class="chip c100"  onclick="addBet(100)">$100</div>
+        <div class="chip c500"  onclick="addBet(500)">$500</div>
+        <div class="chip c1000" onclick="addBet(1000)">$1K</div>
+        <div class="chip c5000" onclick="addBet(5000)">$5K</div>
+        <div class="chip c10000" onclick="addBet(10000)">$10K</div>
+      </div>
+
+      <div class="action-row">
+        <button class="btn-bj btn-bet" id="btn-confirm-bet" onclick="confirmBet()">Confirmar apuesta</button>
+        <button class="btn-bj" style="background:rgba(255,255,255,.1);color:var(--text2)" onclick="clearBet()">Borrar</button>
+      </div>
+
+      <div class="action-row" id="play-actions" style="display:none">
+        <button class="btn-bj btn-hit"    id="btn-hit"    onclick="bjAction('hit')">Pedir carta</button>
+        <button class="btn-bj btn-stand"  id="btn-stand"  onclick="bjAction('stand')">Plantarse</button>
+        <button class="btn-bj btn-double" id="btn-double" onclick="bjAction('double')">Doblar</button>
+        <button class="btn-bj btn-split"  id="btn-split"  onclick="bjAction('split')" style="display:none">Dividir</button>
+      </div>
+    </div>
+  </div>
+  <a href="{{ url_for('casino.casino_lobby') }}" class="back-link">← Volver al lobby</a>
+</div>
+
+<script>
+const RID = "{{ rid }}";
+const MY_UID = "{{ uid }}";
+let currentBet = 0;
+let gameState  = null;
+let myTurn     = false;
+
+function addBet(v){
+  currentBet += v;
+  document.getElementById('bet-display').textContent = '$'+currentBet.toLocaleString();
+}
+function clearBet(){
+  currentBet = 0;
+  document.getElementById('bet-display').textContent = '$0';
+}
+
+async function confirmBet(){
+  if(currentBet < 100){ alert('Mínimo $100'); return; }
+  const res = await fetch('/api/casino/bj/bet',{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({rid:RID, bet:currentBet})
+  });
+  const d = await res.json();
+  if(!d.ok){ alert(d.msg||'Error'); return; }
+  renderRoom(d.room);
+}
+
+async function bjAction(action){
+  const res = await fetch('/api/casino/bj/action',{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({rid:RID, action})
+  });
+  const d = await res.json();
+  if(!d.ok){ alert(d.msg||'Error'); return; }
+  renderRoom(d.room);
+}
+
+function cardHTML(c){
+  if(!c || c.rank==='?') return '<div class="card back"></div>';
+  const red = c.suit==='♥'||c.suit==='♦';
+  return `<div class="card${red?' red':''}">${c.rank}${c.suit}</div>`;
+}
+
+function handVal(hand){
+  const vals = {"A":11,"2":2,"3":3,"4":4,"5":5,"6":6,"7":7,"8":8,"9":9,"10":10,"J":10,"Q":10,"K":10};
+  let v=0, aces=0;
+  for(const c of hand){ v+=vals[c.rank]||0; if(c.rank==='A') aces++; }
+  while(v>21 && aces){ v-=10; aces--; }
+  return v;
+}
+
+function renderRoom(r){
+  if(!r) return;
+  gameState = r;
+  myTurn = r.current_turn === MY_UID;
+
+  // Dealer
+  const dh  = r.dealer_hand||[];
+  const dv  = r.status==='playing'
+    ? (dh.length>0 ? handVal([dh[0]]) : '?')
+    : handVal(dh);
+  document.getElementById('dealer-hand').innerHTML = dh.length
+    ? dh.map((c,i)=> r.status==='playing' && i>0 ? '<div class="card back"></div>' : cardHTML(c)).join('')
+    : '<div style="color:rgba(255,255,255,.3);font-size:13px">Esperando...</div>';
+  document.getElementById('dealer-val').textContent = dh.length ? `Valor: ${dv}` : '';
+
+  // Jugadores
+  const pr = document.getElementById('players-row');
+  pr.innerHTML = '';
+  for(const [uid, p] of Object.entries(r.players||{})){
+    const isMe = uid===MY_UID;
+    const hv   = p.hand?.length ? handVal(p.hand) : 0;
+    let cls = 'player-spot';
+    if(r.current_turn===uid) cls+=' active';
+    const resultKey = r.results?.[uid+'_hand'];
+    if(resultKey){
+      if(['win','blackjack'].includes(resultKey.result)) cls+=' won';
+      else if(['lose','bust','dealer_bj'].includes(resultKey.result)) cls+=' lost';
+    }
+    let resultBadge = '';
+    if(resultKey){
+      const labels = {win:'✓ Ganaste',blackjack:'🃏 Blackjack!',lose:'✗ Perdiste',
+        bust:'💥 Bust',push:'↩ Empate',dealer_bj:'Dealer BJ'};
+      resultBadge = `<div style="font-size:11px;margin-top:4px;color:${['win','blackjack'].includes(resultKey.result)?'#2ecc71':'#e74c3c'}">${labels[resultKey.result]||''}</div>`;
+      if(resultKey.payout>0) resultBadge += `<div style="font-size:12px;color:var(--gold)">+$${resultKey.payout.toLocaleString()}</div>`;
+    }
+    pr.innerHTML += `
+      <div class="${cls}">
+        <div class="player-name">${isMe?'🟢 Tú':p.name}</div>
+        <div class="hand">${(p.hand||[]).map(cardHTML).join('')}</div>
+        ${p.hand?.length ? `<div class="hand-val${hv>21?' bust':hv===21?' bj':''}">${hv>21?'BUST':hv===21?'21':hv}</div>`:''}
+        <div class="player-bet">Apuesta: $${(p.bet||0).toLocaleString()}</div>
+        ${resultBadge}
+      </div>`;
+  }
+
+  // Controles
+  const chipRow    = document.getElementById('chip-row');
+  const playActions= document.getElementById('play-actions');
+  const confirmBtn = document.getElementById('btn-confirm-bet');
+  const bjMsg      = document.getElementById('bj-msg');
+  const status     = document.getElementById('bj-status');
+
+  const me = r.players?.[MY_UID];
+
+  if(r.status==='finished'){
+    chipRow.style.display='flex'; playActions.style.display='none';
+    confirmBtn.style.display='none';
+    const res = r.results?.[MY_UID+'_hand'];
+    if(res){
+      const msgs = {win:`✓ Ganaste $${res.payout.toLocaleString()}`,blackjack:`🃏 ¡BLACKJACK! +$${res.payout.toLocaleString()}`,
+        lose:'✗ Perdiste',bust:'💥 Bust — perdiste',push:'↩ Empate — apuesta devuelta',dealer_bj:'Dealer tiene Blackjack'};
+      bjMsg.textContent = msgs[res.result]||'';
+    }
+    status.textContent = 'Ronda terminada. Apuesta de nuevo para otra mano.';
+    currentBet=0; document.getElementById('bet-display').textContent='$0';
+    confirmBtn.style.display='inline-flex';
+    setTimeout(()=>{location.reload()},4000);
+    return;
+  }
+
+  if(r.status==='waiting' || !me || me.bet===0){
+    chipRow.style.display='flex'; playActions.style.display='none';
+    confirmBtn.style.display='inline-flex';
+    status.textContent = 'Elige tu apuesta y confirma.'; bjMsg.textContent='';
+    return;
+  }
+
+  if(r.status==='playing'){
+    chipRow.style.display='none'; confirmBtn.style.display='none';
+    if(myTurn){
+      playActions.style.display='flex';
+      const me2 = r.players[MY_UID];
+      const canSplit = me2.hand?.length===2 && me2.hand[0].rank===me2.hand[1].rank && !me2.split;
+      document.getElementById('btn-split').style.display=canSplit?'inline-flex':'none';
+      const canDouble = me2.hand?.length===2 && !me2.doubled;
+      document.getElementById('btn-double').disabled=!canDouble;
+      status.textContent='🎯 Tu turno'; bjMsg.textContent='';
+    } else {
+      playActions.style.display='none';
+      const ct = r.players?.[r.current_turn];
+      status.textContent = ct ? `Turno de ${ct.name}…` : 'Esperando…';
+    }
+  }
+}
+
+// Socket para tiempo real
+socket.on('casino_state', renderRoom);
+socket.emit('casino_join_room', {rid: RID});
+
+// Cargar estado inicial
+(async()=>{
+  const res = await fetch('/api/casino/bj/bet', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({rid:RID, bet:0, peek:true})
+  }).catch(()=>null);
+  // Render inicial con datos del server
+  renderRoom({{ room | tojson }});
+})();
+</script>
+{% endblock %}

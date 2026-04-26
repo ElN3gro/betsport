@@ -1,0 +1,321 @@
+{% extends "base.html" %}
+{% block title %}Ruleta — APUSM Casino{% endblock %}
+{% block content %}
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@300;400;500&display=swap');
+  :root{ --felt:#1a0008;--gold:#c9a84c;--gold2:#e8c97e }
+
+  .rlt-wrap{ max-width:920px;margin:0 auto;padding:20px 12px }
+  .rlt-table{
+    background:radial-gradient(ellipse at 50% 30%,#3d0010 0%,var(--felt) 60%,#0d0003 100%);
+    border:4px solid #8B6914;border-radius:20px;padding:20px;
+    box-shadow:0 0 60px rgba(0,0,0,.8);
+  }
+  .rlt-title{ text-align:center;font-family:'Playfair Display',serif;font-size:13px;
+    color:rgba(201,168,76,.5);letter-spacing:3px;text-transform:uppercase;margin-bottom:16px }
+
+  /* Wheel display */
+  .wheel-display{
+    text-align:center;margin-bottom:20px;
+  }
+  .wheel-circle{
+    width:140px;height:140px;border-radius:50%;
+    border:6px solid var(--gold);
+    display:inline-flex;align-items:center;justify-content:center;
+    font-size:52px;font-weight:900;font-family:'Playfair Display',serif;
+    background:radial-gradient(circle,#1a0008,#0d0003);
+    box-shadow:0 0 30px rgba(201,168,76,.3),inset 0 0 20px rgba(0,0,0,.5);
+    transition:all .3s;
+  }
+  .wheel-circle.red-num{ color:#e74c3c;box-shadow:0 0 30px rgba(231,76,60,.4) }
+  .wheel-circle.black-num{ color:#ecf0f1 }
+  .wheel-circle.green-num{ color:#2ecc71;box-shadow:0 0 30px rgba(46,204,113,.4) }
+  .wheel-spinning{ animation:spin .8s ease-out }
+  @keyframes spin{ 0%{transform:rotate(0)} 100%{transform:rotate(720deg)} }
+
+  /* Tablero */
+  .board{ display:flex;flex-direction:column;gap:2px;margin-bottom:16px }
+  .board-row{ display:flex;gap:2px }
+
+  .cell{
+    flex:1;min-width:0;padding:8px 2px;text-align:center;font-size:13px;font-weight:600;
+    border-radius:4px;cursor:pointer;transition:filter .15s,transform .1s;
+    position:relative;user-select:none;font-family:'DM Sans',sans-serif;
+    border:2px solid transparent;
+  }
+  .cell:hover{ filter:brightness(1.3);transform:scale(1.05) }
+  .cell.selected{ border-color:var(--gold)!important;box-shadow:0 0 8px var(--gold) }
+  .cell.red-cell{ background:#c0392b;color:#fff }
+  .cell.black-cell{ background:#1a1a1a;color:#fff;border-color:#444 }
+  .cell.green-cell{ background:#1e8449;color:#fff }
+  .cell.outside{ background:rgba(255,255,255,.08);color:var(--text2);font-size:12px }
+  .cell.outside:hover{ background:rgba(255,255,255,.15) }
+  .chip-on{
+    position:absolute;top:-8px;right:-8px;
+    width:20px;height:20px;border-radius:50%;
+    background:var(--gold);color:#111;font-size:9px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;
+    border:1px solid #fff;
+  }
+
+  /* Fichas */
+  .chips-row{ display:flex;gap:8px;justify-content:center;margin-bottom:14px;flex-wrap:wrap }
+  .chip{
+    width:52px;height:52px;border-radius:50%;border:3px solid;
+    display:flex;align-items:center;justify-content:center;
+    font-size:10px;font-weight:700;cursor:pointer;transition:transform .15s;
+    font-family:'DM Sans',sans-serif;
+  }
+  .chip:hover{ transform:scale(1.12) }
+  .chip.active{ transform:scale(1.15);box-shadow:0 0 12px currentColor }
+  .chip.c100{ background:#c0392b;border-color:#e74c3c;color:#fff }
+  .chip.c500{ background:#2471a3;border-color:#3498db;color:#fff }
+  .chip.c1000{ background:#239b56;border-color:#27ae60;color:#fff }
+  .chip.c5000{ background:#7d3c98;border-color:#9b59b6;color:#fff }
+
+  /* Controles */
+  .rlt-controls{ display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:14px }
+  .btn-rlt{
+    padding:10px 24px;border-radius:8px;font-weight:600;font-size:14px;
+    cursor:pointer;border:none;font-family:'DM Sans',sans-serif;transition:filter .15s;
+  }
+  .btn-rlt:hover{ filter:brightness(1.1) }
+  .btn-spin{ background:linear-gradient(135deg,var(--gold),#a07730);color:#111;font-size:15px }
+  .btn-clear{ background:rgba(255,255,255,.1);color:var(--text2) }
+  .btn-rlt:disabled{ opacity:.35;cursor:not-allowed }
+
+  .rlt-info{ display:flex;justify-content:space-between;align-items:center;
+    background:rgba(0,0,0,.3);border-radius:8px;padding:10px 16px;margin-bottom:14px }
+  .info-item{ text-align:center }
+  .info-label{ font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px }
+  .info-val{ font-size:16px;color:var(--gold);font-weight:700 }
+
+  /* Historial */
+  .history-row{ display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;justify-content:center }
+  .hist-num{
+    width:30px;height:30px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-weight:700;
+  }
+  .hist-num.red-cell{ background:#c0392b;color:#fff }
+  .hist-num.black-cell{ background:#1a1a1a;color:#fff;border:1px solid #444 }
+  .hist-num.green-cell{ background:#1e8449;color:#fff }
+
+  /* Resultado */
+  .result-banner{
+    text-align:center;font-family:'Playfair Display',serif;font-size:22px;
+    padding:14px;border-radius:10px;margin:10px 0;display:none;
+  }
+  .result-banner.win{ background:rgba(46,204,113,.15);color:#2ecc71;border:1px solid rgba(46,204,113,.3) }
+  .result-banner.lose{ background:rgba(231,76,60,.12);color:#e74c3c;border:1px solid rgba(231,76,60,.3) }
+
+  .back-link{ display:block;text-align:center;margin-top:16px;color:var(--text3);font-size:13px }
+</style>
+
+<div class="rlt-wrap">
+  <div class="rlt-table">
+    <div class="rlt-title">🎡 Ruleta Americana · 0 y 00 · Pago justo 🎡</div>
+
+    <!-- Rueda -->
+    <div class="wheel-display">
+      <div class="wheel-circle green-num" id="wheel-display">?</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px">Último número</div>
+    </div>
+
+    <!-- Info -->
+    <div class="rlt-info">
+      <div class="info-item">
+        <div class="info-label">Saldo</div>
+        <div class="info-val" id="balance-display">${{ "{:,.0f}".format(balance) }}</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">Total apostado</div>
+        <div class="info-val" id="total-bet-display">$0</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">Ficha activa</div>
+        <div class="info-val" id="active-chip-display">$100</div>
+      </div>
+    </div>
+
+    <!-- Resultado -->
+    <div class="result-banner" id="result-banner"></div>
+
+    <!-- Fichas -->
+    <div class="chips-row">
+      <div class="chip c100 active"  onclick="selectChip(100,this)">$100</div>
+      <div class="chip c500"         onclick="selectChip(500,this)">$500</div>
+      <div class="chip c1000"        onclick="selectChip(1000,this)">$1K</div>
+      <div class="chip c5000"        onclick="selectChip(5000,this)">$5K</div>
+    </div>
+
+    <!-- Tablero -->
+    <div class="board" id="rlt-board"></div>
+
+    <!-- Controles -->
+    <div class="rlt-controls">
+      <button class="btn-rlt btn-spin" id="btn-spin" onclick="spinWheel()">🎡 Girar ruleta</button>
+      <button class="btn-rlt btn-clear" onclick="clearBets()">✕ Borrar apuestas</button>
+    </div>
+
+    <!-- Historial -->
+    <div style="text-align:center;font-size:11px;color:var(--text3);margin-bottom:6px">Últimos números</div>
+    <div class="history-row" id="history-row"></div>
+  </div>
+  <a href="{{ url_for('casino.casino_lobby') }}" class="back-link">← Volver al lobby</a>
+</div>
+
+<script>
+const REDS = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
+let activeChip = 100;
+let bets = {};   // key → {type, value, amount}
+let history = [];
+
+function selectChip(v, el){
+  activeChip = v;
+  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('active-chip-display').textContent = '$'+v.toLocaleString();
+}
+
+function cellColor(n){
+  if(n===0||n===37) return 'green-cell';
+  return REDS.has(n) ? 'red-cell' : 'black-cell';
+}
+
+function buildBoard(){
+  const board = document.getElementById('rlt-board');
+  board.innerHTML = '';
+
+  // Fila 0 y 00
+  let zeroRow = `<div class="board-row">
+    <div class="cell green-cell" onclick="placeBet('straight','0',this)" data-key="s_0">0</div>
+    <div class="cell green-cell" onclick="placeBet('straight','37',this)" data-key="s_37">00</div>
+  </div>`;
+  board.innerHTML += zeroRow;
+
+  // Números 1-36 en 3 filas (columnas)
+  // Layout: 12 filas × 3 columnas (1-3, 4-6, ... 34-36)
+  for(let row=0; row<12; row++){
+    let rowHTML = '<div class="board-row">';
+    for(let col=0; col<3; col++){
+      const n = row*3 + col + 1;
+      const cc = cellColor(n);
+      rowHTML += `<div class="cell ${cc}" onclick="placeBet('straight','${n}',this)" data-key="s_${n}">${n}</div>`;
+    }
+    rowHTML += '</div>';
+    board.innerHTML += rowHTML;
+  }
+
+  // Apuestas externas
+  board.innerHTML += `
+  <div class="board-row">
+    <div class="cell outside" onclick="placeBet('dozen','1',this)" data-key="d_1">1ª Docena (1-12)</div>
+    <div class="cell outside" onclick="placeBet('dozen','2',this)" data-key="d_2">2ª Docena (13-24)</div>
+    <div class="cell outside" onclick="placeBet('dozen','3',this)" data-key="d_3">3ª Docena (25-36)</div>
+  </div>
+  <div class="board-row">
+    <div class="cell outside" onclick="placeBet('low','1',this)" data-key="low">Bajo (1-18)</div>
+    <div class="cell outside" onclick="placeBet('even','1',this)" data-key="even">Par</div>
+    <div class="cell outside red-cell" onclick="placeBet('red','1',this)" data-key="red">Rojo</div>
+    <div class="cell outside black-cell" onclick="placeBet('black','1',this)" data-key="black">Negro</div>
+    <div class="cell outside" onclick="placeBet('odd','1',this)" data-key="odd">Impar</div>
+    <div class="cell outside" onclick="placeBet('high','1',this)" data-key="high">Alto (19-36)</div>
+  </div>
+  <div class="board-row">
+    <div class="cell outside" onclick="placeBet('column','1',this)" data-key="c_1">Col. 1</div>
+    <div class="cell outside" onclick="placeBet('column','2',this)" data-key="c_2">Col. 2</div>
+    <div class="cell outside" onclick="placeBet('column','3',this)" data-key="c_3">Col. 3</div>
+  </div>`;
+}
+
+function placeBet(type, value, el){
+  const key = el.dataset.key;
+  if(!bets[key]) bets[key] = {type, value, amount:0, el};
+  bets[key].amount += activeChip;
+  updateBetDisplay();
+}
+
+function clearBets(){
+  bets = {};
+  document.querySelectorAll('.cell').forEach(c=>{
+    c.classList.remove('selected');
+    const chip = c.querySelector('.chip-on');
+    if(chip) chip.remove();
+  });
+  document.getElementById('total-bet-display').textContent='$0';
+}
+
+function updateBetDisplay(){
+  let total = 0;
+  document.querySelectorAll('.chip-on').forEach(c=>c.remove());
+  for(const [key, b] of Object.entries(bets)){
+    if(b.amount<=0) continue;
+    total += b.amount;
+    const el = document.querySelector(`[data-key="${key}"]`);
+    if(el){
+      el.classList.add('selected');
+      el.insertAdjacentHTML('beforeend',`<div class="chip-on">${b.amount>=1000?Math.round(b.amount/1000)+'K':b.amount}</div>`);
+    }
+  }
+  document.getElementById('total-bet-display').textContent = '$'+total.toLocaleString();
+}
+
+async function spinWheel(){
+  const betList = Object.values(bets).filter(b=>b.amount>0).map(b=>({type:b.type,value:b.value,amount:b.amount}));
+  if(!betList.length){ alert('Haz al menos una apuesta'); return; }
+
+  const btn = document.getElementById('btn-spin');
+  btn.disabled = true;
+
+  // Animación
+  const wheel = document.getElementById('wheel-display');
+  wheel.classList.add('wheel-spinning');
+  setTimeout(()=>wheel.classList.remove('wheel-spinning'),900);
+
+  const res = await fetch('/api/casino/roulette/spin',{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({bets: betList})
+  });
+  const d = await res.json();
+
+  if(!d.ok){ alert(d.msg||'Error'); btn.disabled=false; return; }
+
+  // Mostrar resultado
+  const wn = d.winning_number;
+  wheel.textContent = d.winning_label;
+  wheel.className = 'wheel-circle ' + (wn===0||wn===37?'green-num': REDS.has(wn)?'red-num':'black-num');
+
+  // Historial
+  history.unshift(wn);
+  if(history.length>20) history.pop();
+  renderHistory();
+
+  // Banner resultado
+  const banner = document.getElementById('result-banner');
+  if(d.net > 0){
+    banner.className='result-banner win';
+    banner.textContent=`✓ Ganaste $${d.net.toLocaleString()} — Número: ${d.winning_label}`;
+  } else {
+    banner.className='result-banner lose';
+    banner.textContent=`✗ Perdiste $${Math.abs(d.net).toLocaleString()} — Número: ${d.winning_label}`;
+  }
+  banner.style.display='block';
+
+  document.getElementById('balance-display').textContent='$'+d.new_balance.toLocaleString();
+  clearBets();
+  btn.disabled=false;
+}
+
+function renderHistory(){
+  const hr = document.getElementById('history-row');
+  hr.innerHTML = history.map(n=>{
+    const lbl = n===37?'00':String(n);
+    const cls = n===0||n===37?'green-cell': REDS.has(n)?'red-cell':'black-cell';
+    return `<div class="hist-num ${cls}">${lbl}</div>`;
+  }).join('');
+}
+
+buildBoard();
+</script>
+{% endblock %}
