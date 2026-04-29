@@ -83,6 +83,7 @@
   .wheel-number{
     position:absolute;transform-origin:50% 50%;
     width:20px;height:20px;text-align:center;line-height:20px;
+    left:50%;top:50%;margin-left:-10px;margin-top:-10px;
   }
   
   .roulette-ball{
@@ -310,7 +311,7 @@ function buildWheel(){
     numberDiv.className = 'wheel-number';
     numberDiv.textContent = label;
     numberDiv.style.color = color;
-    numberDiv.style.transform = `rotate(${angle}deg) translateY(-75px) rotate(${-angle}deg)`;
+    numberDiv.style.transform = `rotate(${angle}deg) translateY(-70px) rotate(${-angle}deg)`;
     wheelNumbers.appendChild(numberDiv);
   });
 }
