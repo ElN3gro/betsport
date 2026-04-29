@@ -256,30 +256,22 @@ function renderRoom(r){
 
   if(r.status==='finished'){
     chipRow.style.display='flex'; playActions.style.display='none';
+    confirmBtn.style.display='none';
     const res = r.results?.[MY_UID+'_hand'];
     if(res){
-      const msgs = {
-        win:       `✓ Ganaste $${res.payout.toLocaleString()}`,
-        blackjack: `🃏 ¡BLACKJACK! +$${res.payout.toLocaleString()}`,
-        lose:      '✗ Perdiste',
-        bust:      '💥 Bust — perdiste',
-        push:      `↩ Empate — te devuelven $${res.payout.toLocaleString()}`,
-        dealer_bj: 'Dealer tiene Blackjack'
-      };
-      bjMsg.textContent = msgs[res.result] || '';
+      const msgs = {win:`✓ Ganaste $${res.payout.toLocaleString()}`,blackjack:`🃏 ¡BLACKJACK! +$${res.payout.toLocaleString()}`,
+        lose:'✗ Perdiste',bust:'💥 Bust — perdiste',push:'↩ Empate — apuesta devuelta',dealer_bj:'Dealer tiene Blackjack'};
+      bjMsg.textContent = msgs[res.result]||'';
     }
-    status.textContent = 'Ronda terminada. Elige tu apuesta para la siguiente mano.';
-    currentBet = 0;
-    document.getElementById('bet-display').textContent = '$0';
-    confirmBtn.style.display = 'inline-flex';
-    confirmBtn.textContent   = '▶ Nueva mano';
+    status.textContent = 'Ronda terminada. Apuesta de nuevo para otra mano.';
+    currentBet=0; document.getElementById('bet-display').textContent='$0';
+    confirmBtn.style.display='inline-flex';
     return;
   }
 
   if(r.status==='waiting' || !me || me.bet===0){
     chipRow.style.display='flex'; playActions.style.display='none';
     confirmBtn.style.display='inline-flex';
-    confirmBtn.textContent = 'Confirmar apuesta';
     status.textContent = 'Elige tu apuesta y confirma.'; bjMsg.textContent='';
     return;
   }
@@ -303,10 +295,20 @@ function renderRoom(r){
 }
 
 // Socket para tiempo real
-socket.on('casino_state', renderRoom);
-socket.emit('casino_join_room', {rid: RID});
+socket.on('casino_state', function(r) {
+  if (r && r.game === 'blackjack') renderRoom(r);
+});
 
-// Render inicial desde el servidor (sin fetch extra)
+socket.on('connect', function() {
+  socket.emit('casino_join_room', {rid: RID, uid: MY_UID});
+});
+
+// Si ya conectado, pedir estado
+if (socket.connected) {
+  socket.emit('casino_join_room', {rid: RID, uid: MY_UID});
+}
+
+// Render inicial con datos del server
 renderRoom({{ room | tojson }});
 </script>
 {% endblock %}

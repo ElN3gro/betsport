@@ -204,12 +204,11 @@ function renderRoom(r){
   const waitingZ = document.getElementById('waiting-zone');
 
   if(phase==='waiting'||phase==='finished'){
-    const playerCount = Object.keys(r.players||{}).length;
-    startZ.style.display = playerCount >= 2 ? 'block' : 'none';
+    const isAnyPlayer = Object.keys(r.players||{}).length >= 2;
+    startZ.style.display = isAnyPlayer ? 'block' : 'none';
     actionZ.style.display  = 'none';
-    waitingZ.style.display = playerCount >= 2 ? 'none' : 'block';
-    if(playerCount < 2) waitingZ.textContent = 'Esperando más jugadores…';
-    if(phase==='finished') document.getElementById('pk-msg').textContent = r.winner ? `🏆 Ganador: ${r.players?.[r.winner]?.name||'?'} — +$${(r.payout||0).toLocaleString()}` : '';
+    waitingZ.style.display = isAnyPlayer ? 'none' : 'block';
+    if(!isAnyPlayer) waitingZ.textContent = 'Esperando más jugadores…';
     return;
   }
 
@@ -260,8 +259,17 @@ async function pkAction(action){
 }
 
 // Socket
-socket.on('casino_state', renderRoom);
-socket.emit('casino_join_room', {rid:RID});
+socket.on('casino_state', function(r) {
+  if (r && r.game === 'poker') renderRoom(r);
+});
+
+socket.on('connect', function() {
+  socket.emit('casino_join_room', {rid: RID, uid: MY_UID});
+});
+
+if (socket.connected) {
+  socket.emit('casino_join_room', {rid: RID, uid: MY_UID});
+}
 
 // Render inicial
 renderRoom({{ room | tojson }});

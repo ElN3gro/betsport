@@ -207,14 +207,6 @@ def bj_resolve_room(conn, rid, fetchone_fn, execute_fn, house_log_fn):
     r["results"]     = results
     r["dealer_hand"] = dealer
     set_room(rid, r)
-
-    # Notificar a todos en la sala el resultado final
-    try:
-        from app import socketio as sio
-        sio.emit("casino_state", r, room=rid)
-    except Exception:
-        pass
-
     return results
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -245,19 +237,19 @@ def roulette_resolve_bet(bet_type, bet_value, winning_number):
     row      = (n-1)//3 + 1    # 1-12
 
     payouts = {
-        "straight":  (36, str(n)==str(bet_value)),
-        "split":     (18, str(n) in str(bet_value).split(",")),
-        "street":    (12, row==int(bet_value)),
-        "corner":    (9,  str(n) in str(bet_value).split(",")),
-        "line":      (6,  row in [int(x) for x in str(bet_value).split(",")]),
-        "dozen":     (3,  dozen==int(bet_value)),
-        "column":    (3,  column==int(bet_value)),
-        "red":       (2,  is_red),
-        "black":     (2,  not is_red),
-        "even":      (2,  is_even),
-        "odd":       (2,  not is_even),
-        "low":       (2,  low),
-        "high":      (2,  not low),
+        "straight":  (35, str(n)==str(bet_value)),   # 35:1
+        "split":     (17, str(n) in str(bet_value).split(",")),  # 17:1
+        "street":    (11, row==int(bet_value)),       # 11:1
+        "corner":    (8,  str(n) in str(bet_value).split(",")),  # 8:1
+        "line":      (5,  row in [int(x) for x in str(bet_value).split(",")]),  # 5:1
+        "dozen":     (2,  dozen==int(bet_value)),     # 2:1
+        "column":    (2,  column==int(bet_value)),    # 2:1
+        "red":       (1,  is_red),                    # 1:1
+        "black":     (1,  not is_red),                # 1:1
+        "even":      (1,  is_even),                   # 1:1
+        "odd":       (1,  not is_even),               # 1:1
+        "low":       (1,  low),                       # 1:1
+        "high":      (1,  not low),                   # 1:1
     }
     if bet_type not in payouts: return 0
     mult, win = payouts[bet_type]
@@ -339,10 +331,17 @@ def casino_lobby():
 @casino.route("/casino/blackjack/join", methods=["POST"])
 def bj_join():
     if "user_id" not in session: return redirect(url_for("login"))
+    uid = str(session["user_id"])
+    # Buscar si el jugador ya está en una sala activa
+    for rid, d in _rooms.items():
+        if d["game"]=="blackjack" and uid in d.get("players",{}) and d["status"] != "finished":
+            return redirect(url_for("casino.bj_room", rid=rid))
+    # Limpiar salas terminadas
+    finished = [r for r,d in _rooms.items() if d["game"]=="blackjack" and d["status"]=="finished"]
+    for r in finished: _rooms.pop(r, None)
     rooms = open_rooms("blackjack")
     rid   = rooms[0] if rooms else bj_new_room()
     r     = get_room(rid)
-    uid   = str(session["user_id"])
     if uid not in r["players"]:
         r["players"][uid] = {"name": session.get("username","?"), "bet":0, "hand":[], "hand2":[], "status":"waiting", "split":False, "doubled":False, "bet2":0}
         set_room(rid, r)
@@ -391,34 +390,12 @@ def api_bj_bet():
     if "user_id" not in session: return jsonify({"ok":False,"msg":"Sin sesión"})
     data  = request.get_json()
     rid   = data.get("rid"); uid = str(session["user_id"])
-    bet   = int(data.get("bet", 0))
+    bet   = int(data.get("bet",0))
     r     = get_room(rid)
     if not r or uid not in r["players"]:
         return jsonify({"ok":False,"msg":"Sala inválida"})
     if bet < CASINO_MIN_BET or bet > CASINO_MAX_BET:
         return jsonify({"ok":False,"msg":f"Apuesta entre ${CASINO_MIN_BET} y ${CASINO_MAX_BET}"})
-
-    # Si la sala terminó, resetearla para nueva ronda antes de aceptar apuesta
-    if r["status"] == "finished":
-        r["status"]       = "waiting"
-        r["dealer_hand"]  = []
-        r["results"]      = {}
-        r["current_turn"] = None
-        r["turn_order"]   = []
-        for p in r["players"].values():
-            p["bet"]     = 0
-            p["hand"]    = []
-            p["hand2"]   = []
-            p["status"]  = "waiting"
-            p["split"]   = False
-            p["doubled"] = False
-            p["bet2"]    = 0
-        set_room(rid, r)
-
-    # Solo aceptar apuesta si la sala está esperando
-    if r["status"] != "waiting":
-        return jsonify({"ok":False,"msg":"La ronda ya comenzó, espera la siguiente"})
-
     # Verificar saldo
     from app import fetchone as fo, execute as ex, get_db
     conn = get_db()
@@ -426,21 +403,16 @@ def api_bj_bet():
     conn.close()
     if not user or user["balance"] < bet:
         return jsonify({"ok":False,"msg":"Saldo insuficiente"})
-
-    r["players"][uid]["bet"]    = bet
-    r["players"][uid]["status"] = "waiting"
-
+    r["players"][uid]["bet"] = bet
     # Descontar apuesta inmediatamente
     conn = get_db()
     ex(conn, "UPDATE users SET balance=balance-? WHERE id=?", (bet, session["user_id"]))
     conn.commit(); conn.close()
-
-    # Si TODOS los jugadores ya apostaron → repartir
-    all_bet = all(p["bet"] > 0 for p in r["players"].values())
-    if all_bet:
+    # Iniciar ronda inmediatamente (no esperar a otros jugadores)
+    if r["status"] == "waiting":
         bj_deal_room(rid)
-
     set_room(rid, r)
+    _emit_casino_room(rid, None)
     return jsonify({"ok":True,"room":_sanitize_room(rid, uid)})
 
 @casino.route("/api/casino/bj/action", methods=["POST"])
@@ -487,8 +459,10 @@ def api_bj_action():
     if _bj_all_done(rid):
         from app import fetchone as fo, execute as ex, get_db, now as now_app
         conn = get_db()
-        results = bj_resolve_room(conn, rid, fo, ex, _casino_house_log)
+        bj_resolve_room(conn, rid, fo, ex, _casino_house_log)
         conn.commit(); conn.close()
+    # Emitir estado actualizado a todos en la sala
+    _emit_casino_room(rid, None)
     return jsonify({"ok":True,"room":_sanitize_room(rid, uid)})
 
 def _bj_advance_turn(rid):
@@ -506,10 +480,7 @@ def _bj_advance_turn(rid):
 
 def _bj_all_done(rid):
     r = get_room(rid)
-    if r["status"] != "playing": return False
-    # Solo cuenta jugadores que están en juego activo (no los que están en "waiting" o sin mano)
-    playing = [p for p in r["players"].values() if p.get("hand")]
-    return bool(playing) and all(p["status"] != "playing" for p in playing)
+    return all(p["status"] != "playing" for p in r["players"].values())
 
 @casino.route("/api/casino/roulette/spin", methods=["POST"])
 def api_roulette_spin():
@@ -539,15 +510,15 @@ def api_roulette_spin():
         amt  = int(b["amount"])
         mult = roulette_resolve_bet(b["type"], b["value"], winning)
         if mult > 0:
-            bruto  = amt * mult
+            bruto  = amt + amt * mult   # apuesta devuelta + ganancia
             payout = round50(bruto)
             redond = bruto - payout
             total_payout += payout
             if redond > 0:
                 _casino_house_log(conn,"roulette","single",redond,"redondeo",f"Redondeo ruleta uid={session['user_id']}")
-            bet_results.append({"type":b["type"],"value":b["value"],"amount":amt,"win":True,"payout":payout,"mult":mult})
+            bet_results.append({"type":b["type"],"value":b["value"],"amount":amt,"win":True,"payout":payout,"mult":mult,"gain":round50(amt*mult)})
         else:
-            bet_results.append({"type":b["type"],"value":b["value"],"amount":amt,"win":False,"payout":0,"mult":0})
+            bet_results.append({"type":b["type"],"value":b["value"],"amount":amt,"win":False,"payout":0,"mult":0,"gain":0})
 
     if total_payout > 0:
         ex(conn,"UPDATE users SET balance=balance+? WHERE id=?",(total_payout, session["user_id"]))
@@ -614,6 +585,7 @@ def api_poker_action():
         _poker_next_phase(rid)
 
     set_room(rid, r)
+    _emit_casino_room(rid, None)
     return jsonify({"ok":True,"room":_sanitize_room(rid, uid)})
 
 def _poker_advance_turn(rid):
@@ -722,6 +694,17 @@ def _casino_house_log(conn, game, room_id, amount, log_type, note):
     ex(conn, """INSERT INTO casino_house_log (game,room_id,amount,type,note,created_at)
         VALUES (?,?,?,?,?,?)""", (game, str(room_id), amount, log_type, note, now_s()))
 
+def _emit_casino_room(rid, my_uid):
+    """Emite el estado de la sala a todos los conectados via Socket.IO."""
+    try:
+        from flask_socketio import emit as _emit
+        r = _sanitize_room(rid, my_uid or "")
+        _sio_instance.emit("casino_state", r, room=rid)
+    except Exception:
+        pass  # Si no hay socket activo, no pasa nada
+
+_sio_instance = None  # Se asigna en register_casino
+
 def _sanitize_room(rid, my_uid):
     """Devuelve el estado de la sala ocultando las cartas de otros jugadores en póker."""
     r = get_room(rid)
@@ -758,6 +741,10 @@ CREATE TABLE IF NOT EXISTS casino_house_log (
     note TEXT DEFAULT '',
     created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL DEFAULT ''
+);
 """
 
 def init_casino_tables(conn):
@@ -769,12 +756,18 @@ def init_casino_tables(conn):
 
 def register_casino(app, socketio_instance):
     """Llama esto en app.py para registrar el módulo casino."""
+    global _sio_instance
+    _sio_instance = socketio_instance
     app.register_blueprint(casino)
 
     # Socket events para tiempo real
     @socketio_instance.on("casino_join_room")
     def on_casino_join(data):
         join_room(data.get("rid"))
+        # Enviar estado actual al recién conectado
+        rid = data.get("rid"); uid = data.get("uid","")
+        r   = _sanitize_room(rid, uid)
+        sio_emit("casino_state", r, room=rid)
 
     @socketio_instance.on("casino_leave_room")
     def on_casino_leave(data):

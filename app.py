@@ -348,7 +348,7 @@ def dashboard():
             WHERE b.user_id=? ORDER BY b.created_at DESC LIMIT 20""", (session["user_id"],))
     finally:
         conn.close()
-    return render_template("dashboard.html", user=user, edata=edata, my_bets=my_bets)
+    return render_template("dashboard.html", user=user, edata=edata, my_bets=my_bets, casino_enabled=_casino_enabled())
 
 # ── SOLICITAR ENTRADA ─────────────────────────────────────────────────────────
 
@@ -486,17 +486,11 @@ def admin_panel():
                 "total_field_away": sum(p["entry_paid"] for p in fp_away),
                 "pending_bets_count": pcount})
         house_total = fetchone(conn, "SELECT COALESCE(SUM(amount),0) as t FROM house_log WHERE type='profit'")["t"]
-        try:
-            cs_row = fetchone(conn, "SELECT value FROM settings WHERE key='casino_enabled'")
-            casino_enabled = cs_row and cs_row['value'] == '1'
-        except Exception:
-            casino_enabled = False
     finally:
         conn.close()
     return render_template("admin.html", tokens=tokens, players=players, all_users=all_users,
         pending_entries=pending_entries, pending_bets=pending_bets,
-        rejected_auto_bets=rejected_auto_bets, edata=edata, house_total=house_total,
-        casino_enabled=casino_enabled)
+        rejected_auto_bets=rejected_auto_bets, edata=edata, house_total=house_total)
 
 # ── TOKENS ─────────────────────────────────────────────────────────────────────
 
@@ -1305,6 +1299,8 @@ def api_poker_start():
     rid  = data.get("rid")
     ok   = poker_start_hand(rid)
     if not ok: return jsonify({"ok":False,"msg":"Se necesitan al menos 2 jugadores"})
+    from casino import _emit_casino_room
+    _emit_casino_room(rid, None)
     return jsonify({"ok":True,"room":_sanitize_room(rid, str(session["user_id"]))})
 
 @app.route("/admin/casino/toggle", methods=["POST"])
