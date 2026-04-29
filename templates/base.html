@@ -130,7 +130,7 @@ tr:last-child td{border-bottom:none}
     {% if session.role == 'admin' %}
       <a href="{{ url_for('admin_panel') }}">Panel Admin</a>
     {% else %}
-      <a href="{{ url_for('dashboard') }}">Eventos</a>
+      <a href="{{ url_for('dashboard') }}" style="background:linear-gradient(135deg,#003da5,#1a5bbf);color:#fff;font-weight:600;padding:5px 12px;border-radius:7px;font-size:13px">⚽ Eventos</a>
       <a href="{{ url_for('profile') }}">Mi Perfil</a>
       <a href="{{ url_for('casino.casino_lobby') }}" style="background:linear-gradient(135deg,#c9a84c,#a07730);color:#111;font-weight:600;padding:5px 12px;border-radius:7px;font-size:13px">🎰 Casino</a>
     {% endif %}
