@@ -15,23 +15,130 @@
     color:rgba(201,168,76,.5);letter-spacing:3px;text-transform:uppercase;margin-bottom:16px }
 
   /* Wheel display */
-  .wheel-display{
-    text-align:center;margin-bottom:20px;
+  .wheel-container{
+    text-align:center;margin-bottom:20px;position:relative;height:200px;
   }
-  .wheel-circle{
-    width:140px;height:140px;border-radius:50%;
-    border:6px solid var(--gold);
-    display:inline-flex;align-items:center;justify-content:center;
-    font-size:52px;font-weight:900;font-family:'Playfair Display',serif;
-    background:radial-gradient(circle,#1a0008,#0d0003);
-    box-shadow:0 0 30px rgba(201,168,76,.3),inset 0 0 20px rgba(0,0,0,.5);
-    transition:all .3s;
+  .roulette-wheel{
+    width:180px;height:180px;border-radius:50%;
+    border:8px solid var(--gold);
+    position:relative;margin:0 auto;
+    background:conic-gradient(
+      from 0deg,
+      #2ecc71 0deg 9.73deg,  /* 0 */
+      #e74c3c 9.73deg 19.46deg,   /* 32 */
+      #1a1a1a 19.46deg 29.19deg,  /* 15 */
+      #e74c3c 29.19deg 38.92deg,  /* 19 */
+      #1a1a1a 38.92deg 48.65deg,  /* 4 */
+      #e74c3c 48.65deg 58.38deg,  /* 21 */
+      #1a1a1a 58.38deg 68.11deg,  /* 2 */
+      #e74c3c 68.11deg 77.84deg,  /* 25 */
+      #1a1a1a 77.84deg 87.57deg,  /* 17 */
+      #e74c3c 87.57deg 97.3deg,   /* 34 */
+      #1a1a1a 97.3deg 107.03deg,  /* 6 */
+      #e74c3c 107.03deg 116.76deg,/* 27 */
+      #1a1a1a 116.76deg 126.49deg,/* 13 */
+      #e74c3c 126.49deg 136.22deg,/* 36 */
+      #1a1a1a 136.22deg 145.95deg,/* 11 */
+      #e74c3c 145.95deg 155.68deg,/* 30 */
+      #1a1a1a 155.68deg 165.41deg,/* 8 */
+      #e74c3c 165.41deg 175.14deg,/* 23 */
+      #1a1a1a 175.14deg 184.87deg,/* 10 */
+      #e74c3c 184.87deg 194.6deg, /* 5 */
+      #1a1a1a 194.6deg 204.33deg,  /* 24 */
+      #e74c3c 204.33deg 214.06deg,/* 16 */
+      #1a1a1a 214.06deg 223.79deg,/* 33 */
+      #e74c3c 223.79deg 233.52deg,/* 1 */
+      #1a1a1a 233.52deg 243.25deg,/* 20 */
+      #e74c3c 243.25deg 252.98deg,/* 14 */
+      #1a1a1a 252.98deg 262.71deg,/* 31 */
+      #e74c3c 262.71deg 272.44deg,/* 9 */
+      #1a1a1a 272.44deg 282.17deg,/* 22 */
+      #e74c3c 282.17deg 291.9deg,  /* 18 */
+      #1a1a1a 291.9deg 301.63deg,  /* 29 */
+      #e74c3c 301.63deg 311.36deg,/* 7 */
+      #1a1a1a 311.36deg 321.09deg,/* 28 */
+      #e74c3c 321.09deg 330.82deg,/* 12 */
+      #1a1a1a 330.82deg 340.55deg,/* 35 */
+      #e74c3c 340.55deg 350.28deg,/* 3 */
+      #1a1a1a 350.28deg 360deg,  /* 26 */
+      #2ecc71 360deg 369.73deg    /* 00 */
+    );
+    box-shadow:0 0 40px rgba(201,168,76,.4),inset 0 0 30px rgba(0,0,0,.6);
+    transition:transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99);
   }
-  .wheel-circle.red-num{ color:#e74c3c;box-shadow:0 0 30px rgba(231,76,60,.4) }
-  .wheel-circle.black-num{ color:#ecf0f1 }
-  .wheel-circle.green-num{ color:#2ecc71;box-shadow:0 0 30px rgba(46,204,113,.4) }
-  .wheel-spinning{ animation:spin .8s ease-out }
-  @keyframes spin{ 0%{transform:rotate(0)} 100%{transform:rotate(720deg)} }
+  
+  .wheel-center{
+    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    width:40px;height:40px;border-radius:50%;
+    background:radial-gradient(circle,var(--gold),#8B6914);
+    border:3px solid #fff;z-index:10;
+  }
+  
+  .wheel-numbers{
+    position:absolute;width:100%;height:100%;
+    font-size:11px;font-weight:700;color:#fff;
+    text-shadow:1px 1px 2px rgba(0,0,0,.8);
+  }
+  
+  .wheel-number{
+    position:absolute;transform-origin:50% 50%;
+    width:20px;height:20px;text-align:center;line-height:20px;
+  }
+  
+  .roulette-ball{
+    position:absolute;width:12px;height:12px;border-radius:50%;
+    background:radial-gradient(circle at 30% 30%,#fff,#ccc);
+    border:1px solid #999;box-shadow:0 2px 4px rgba(0,0,0,.3);
+    top:50%;left:50%;transform:translate(-50%,-50%);
+    opacity:0;z-index:15;
+  }
+  
+  .ball-spinning{
+    animation:ballSpin 3s ease-in-out;
+  }
+  
+  @keyframes ballSpin{
+    0%{opacity:0;transform:translate(-50%,-50%) rotate(0deg) translateX(70px) rotate(0deg);}
+    20%{opacity:1;transform:translate(-50%,-50%) rotate(180deg) translateX(70px) rotate(-180deg);}
+    40%{transform:translate(-50%,-50%) rotate(360deg) translateX(65px) rotate(-360deg);}
+    60%{transform:translate(-50%,-50%) rotate(540deg) translateX(60px) rotate(-540deg);}
+    80%{opacity:1;transform:translate(-50%,-50%) rotate(720deg) translateX(55px) rotate(-720deg);}
+    100%{opacity:1;transform:translate(-50%,-50%) rotate(900deg) translateX(50px) rotate(-900deg);}
+  }
+  
+  .ball-landing{
+    animation:ballLand 1s ease-out forwards;
+  }
+  
+  @keyframes ballLand{
+    0%{transform:translate(-50%,-50%) rotate(900deg) translateX(50px) rotate(-900deg) scale(1);}
+    100%{transform:translate(-50%,-50%) rotate(900deg) translateX(40px) rotate(-900deg) scale(2);}
+  }
+  
+  .wheel-spinning{
+    animation:wheelRotate 4s cubic-bezier(0.17, 0.67, 0.12, 0.99) forwards;
+  }
+  
+  @keyframes wheelRotate{
+    0%{transform:rotate(0deg);}
+    100%{transform:rotate(1800deg);}
+  }
+  
+  .result-display{
+    position:absolute;top:10px;left:50%;transform:translateX(-50%);
+    background:rgba(0,0,0,.8);color:var(--gold);
+    padding:8px 16px;border-radius:20px;font-weight:700;
+    font-size:14px;opacity:0;z-index:20;
+  }
+  
+  .result-show{
+    animation:showResult 1s ease-out 3s forwards;
+  }
+  
+  @keyframes showResult{
+    0%{opacity:0;transform:translateX(-50%) scale(0.8);}
+    100%{opacity:1;transform:translateX(-50%) scale(1.2);}
+  }
 
   /* Tablero */
   .board{ display:flex;flex-direction:column;gap:2px;margin-bottom:16px }
@@ -117,8 +224,13 @@
     <div class="rlt-title">🎡 Ruleta Americana · 0 y 00 · Pago justo 🎡</div>
 
     <!-- Rueda -->
-    <div class="wheel-display">
-      <div class="wheel-circle green-num" id="wheel-display">?</div>
+    <div class="wheel-container">
+      <div class="roulette-wheel" id="roulette-wheel">
+        <div class="wheel-numbers" id="wheel-numbers"></div>
+        <div class="wheel-center"></div>
+        <div class="roulette-ball" id="roulette-ball"></div>
+      </div>
+      <div class="result-display" id="result-display">?</div>
       <div style="font-size:11px;color:var(--text3);margin-top:6px">Último número</div>
     </div>
 
@@ -162,7 +274,6 @@
     <div style="text-align:center;font-size:11px;color:var(--text3);margin-bottom:6px">Últimos números</div>
     <div class="history-row" id="history-row"></div>
   </div>
-  <a href="{{ url_for('casino.casino_lobby') }}" class="back-link">← Volver al lobby</a>
 </div>
 
 <script>
@@ -181,6 +292,27 @@ function selectChip(v, el){
 function cellColor(n){
   if(n===0||n===37) return 'green-cell';
   return REDS.has(n) ? 'red-cell' : 'black-cell';
+}
+
+function buildWheel(){
+  const wheelNumbers = document.getElementById('wheel-numbers');
+  wheelNumbers.innerHTML = '';
+  
+  // Roulette wheel number order (American roulette)
+  const wheelOrder = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26, 37]; // 37 = 00
+  
+  wheelOrder.forEach((num, i) => {
+    const angle = (i * 360 / 38) - 90; // -90 to start from top
+    const label = num === 37 ? '00' : num;
+    const color = num === 0 || num === 37 ? '#2ecc71' : REDS.has(num) ? '#e74c3c' : '#1a1a1a';
+    
+    const numberDiv = document.createElement('div');
+    numberDiv.className = 'wheel-number';
+    numberDiv.textContent = label;
+    numberDiv.style.color = color;
+    numberDiv.style.transform = `rotate(${angle}deg) translateY(-75px) rotate(${-angle}deg)`;
+    wheelNumbers.appendChild(numberDiv);
+  });
 }
 
 function buildBoard(){
@@ -268,11 +400,24 @@ async function spinWheel(){
   const btn = document.getElementById('btn-spin');
   btn.disabled = true;
 
-  // Animación
-  const wheel = document.getElementById('wheel-display');
+  // Enhanced animation with wheel and ball
+  const wheel = document.getElementById('roulette-wheel');
+  const ball = document.getElementById('roulette-ball');
+  const resultDisplay = document.getElementById('result-display');
+  
+  // Reset animations
+  wheel.classList.remove('wheel-spinning');
+  ball.classList.remove('ball-spinning', 'ball-landing');
+  resultDisplay.classList.remove('result-show');
+  
+  // Force reflow
+  void wheel.offsetWidth;
+  
+  // Start animations
   wheel.classList.add('wheel-spinning');
-  setTimeout(()=>wheel.classList.remove('wheel-spinning'),900);
-
+  ball.classList.add('ball-spinning');
+  
+  // Get result from server
   const res = await fetch('/api/casino/roulette/spin',{
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({bets: betList})
@@ -281,30 +426,55 @@ async function spinWheel(){
 
   if(!d.ok){ alert(d.msg||'Error'); btn.disabled=false; return; }
 
-  // Mostrar resultado
+  // Calculate final wheel rotation based on winning number
   const wn = d.winning_number;
-  wheel.textContent = d.winning_label;
-  wheel.className = 'wheel-circle ' + (wn===0||wn===37?'green-num': REDS.has(wn)?'red-num':'black-num');
+  const wheelOrder = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26, 37];
+  const winningIndex = wheelOrder.indexOf(wn);
+  const targetAngle = (winningIndex * 360 / 38) + 1800; // 5 full rotations + final position
+  
+  // Apply final rotation
+  setTimeout(() => {
+    wheel.style.transform = `rotate(${targetAngle}deg)`;
+    
+    // Ball landing animation with zoom
+    setTimeout(() => {
+      ball.classList.remove('ball-spinning');
+      ball.classList.add('ball-landing');
+      
+      // Show result with zoom effect
+      resultDisplay.textContent = `Número: ${d.winning_label}`;
+      resultDisplay.style.color = wn===0||wn===37 ? '#2ecc71' : REDS.has(wn) ? '#e74c3c' : '#ecf0f1';
+      resultDisplay.classList.add('result-show');
+      
+      // Update banner
+      const banner = document.getElementById('result-banner');
+      if(d.net > 0){
+        banner.className='result-banner win';
+        banner.textContent=`✓ Ganaste $${d.net.toLocaleString()} — Número: ${d.winning_label}`;
+      } else {
+        banner.className='result-banner lose';
+        banner.textContent=`✗ Perdiste $${Math.abs(d.net).toLocaleString()} — Número: ${d.winning_label}`;
+      }
+      banner.style.display='block';
+      
+      // Update balance
+      document.getElementById('balance-display').textContent='$'+d.new_balance.toLocaleString('es-CL');
+      
+      // Clear bets and re-enable button
+      setTimeout(() => {
+        clearBets();
+        btn.disabled = false;
+        wheel.classList.remove('wheel-spinning');
+        ball.classList.remove('ball-landing');
+        resultDisplay.classList.remove('result-show');
+      }, 2000);
+    }, 3000);
+  }, 100);
 
   // Historial
   history.unshift(wn);
   if(history.length>20) history.pop();
   renderHistory();
-
-  // Banner resultado
-  const banner = document.getElementById('result-banner');
-  if(d.net > 0){
-    banner.className='result-banner win';
-    banner.textContent=`✓ Ganaste $${d.net.toLocaleString()} — Número: ${d.winning_label}`;
-  } else {
-    banner.className='result-banner lose';
-    banner.textContent=`✗ Perdiste $${Math.abs(d.net).toLocaleString()} — Número: ${d.winning_label}`;
-  }
-  banner.style.display='block';
-
-  document.getElementById('balance-display').textContent='$'+d.new_balance.toLocaleString('es-CL');
-  clearBets();
-  btn.disabled=false;
 }
 
 function renderHistory(){
@@ -316,6 +486,7 @@ function renderHistory(){
   }).join('');
 }
 
+buildWheel();
 buildBoard();
 </script>
 {% endblock %}
