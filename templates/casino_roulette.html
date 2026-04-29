@@ -95,28 +95,32 @@
   }
   
   .ball-spinning{
-    animation:ballSpin 3s ease-in-out;
+    animation:ballSpin 4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   }
   
   @keyframes ballSpin{
-    0%{opacity:0;transform:translate(-50%,-50%) rotate(0deg) translateX(80px) rotate(0deg);}
-    15%{opacity:1;transform:translate(-50%,-50%) rotate(270deg) translateX(78px) rotate(-270deg);}
-    30%{transform:translate(-50%,-50%) rotate(540deg) translateX(72px) rotate(-540deg);}
-    45%{transform:translate(-50%,-50%) rotate(720deg) translateX(65px) rotate(-720deg);}
-    60%{transform:translate(-50%,-50%) rotate(900deg) translateX(58px) rotate(-900deg);}
-    75%{opacity:1;transform:translate(-50%,-50%) rotate(1080deg) translateX(52px) rotate(-1080deg);}
-    90%{transform:translate(-50%,-50%) rotate(1260deg) translateX(48px) rotate(-1260deg);}
-    100%{opacity:1;transform:translate(-50%,-50%) rotate(1440deg) translateX(45px) rotate(-1440deg);}
+    0%{opacity:0;transform:translate(-50%,-50%) rotate(0deg) translateX(85px) rotate(0deg);}
+    10%{opacity:0.5;transform:translate(-50%,-50%) rotate(180deg) translateX(82px) rotate(-180deg);}
+    20%{opacity:1;transform:translate(-50%,-50%) rotate(360deg) translateX(78px) rotate(-360deg);}
+    30%{transform:translate(-50%,-50%) rotate(540deg) translateX(73px) rotate(-540deg);}
+    40%{transform:translate(-50%,-50%) rotate(720deg) translateX(67px) rotate(-720deg);}
+    50%{transform:translate(-50%,-50%) rotate(900deg) translateX(60px) rotate(-900deg);}
+    60%{transform:translate(-50%,-50%) rotate(1080deg) translateX(54px) rotate(-1080deg);}
+    70%{transform:translate(-50%,-50%) rotate(1260deg) translateX(48px) rotate(-1260deg);}
+    80%{opacity:1;transform:translate(-50%,-50%) rotate(1440deg) translateX(45px) rotate(-1440deg);}
+    90%{opacity:1;transform:translate(-50%,-50%) rotate(1620deg) translateX(43px) rotate(-1620deg);}
+    100%{opacity:1;transform:translate(-50%,-50%) rotate(1800deg) translateX(42px) rotate(-1800deg);}
   }
   
   .ball-landing{
-    animation:ballLand 1s ease-out forwards;
+    animation:ballLand 1.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
   }
   
   @keyframes ballLand{
-    0%{transform:translate(-50%,-50%) rotate(1440deg) translateX(45px) rotate(-1440deg) scale(1);}
-    50%{transform:translate(-50%,-50%) rotate(1440deg) translateX(42px) rotate(-1440deg) scale(1.5);}
-    100%{transform:translate(-50%,-50%) rotate(1440deg) translateX(40px) rotate(-1440deg) scale(3);}
+    0%{transform:translate(-50%,-50%) rotate(1800deg) translateX(42px) rotate(-1800deg) scale(1);}
+    30%{transform:translate(-50%,-50%) rotate(1800deg) translateX(41px) rotate(-1800deg) scale(1.2);}
+    60%{transform:translate(-50%,-50%) rotate(1800deg) translateX(40.5px) rotate(-1800deg) scale(1.8);}
+    100%{transform:translate(-50%,-50%) rotate(1800deg) translateX(40px) rotate(-1800deg) scale(2.5);}
   }
   
   .wheel-spinning{
@@ -280,6 +284,11 @@
     <div style="text-align:center;font-size:11px;color:var(--text3);margin-bottom:6px">Últimos números</div>
     <div class="history-row" id="history-row"></div>
   </div>
+  <form method="POST" action="{{ url_for('casino.casino_leave', rid=rid) }}" style="text-align:center;margin-top:8px">
+    <button type="submit" style="background:rgba(231,76,60,.15);border:1px solid rgba(231,76,60,.3);color:#e74c3c;border-radius:8px;padding:8px 20px;font-size:12px;cursor:pointer">
+      Salir de la sala
+    </button>
+  </form>
 </div>
 
 <script>
@@ -447,7 +456,7 @@ async function spinWheel(){
       ball.classList.remove('ball-spinning');
       ball.classList.add('ball-landing');
       
-      // Show result with dramatic zoom effect
+      // Show result with dramatic zoom effect after ball completes landing
       setTimeout(() => {
         resultDisplay.textContent = `¡${d.winning_label}!`;
         resultDisplay.style.color = wn===0||wn===37 ? '#2ecc71' : REDS.has(wn) ? '#e74c3c' : '#ecf0f1';
@@ -474,9 +483,9 @@ async function spinWheel(){
           wheel.classList.remove('wheel-spinning');
           ball.classList.remove('ball-landing');
           resultDisplay.classList.remove('result-show');
-        }, 1500);
-      }, 500);
-    }, 3500);
+        }, 1800);
+      }, 800);
+    }, 4000);
   }, 100);
 
   // Historial
