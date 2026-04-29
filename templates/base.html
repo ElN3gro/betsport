@@ -122,9 +122,9 @@ tr:last-child td{border-bottom:none}
 </head>
 <body>
 {% if session.user_id %}
-<nav>
-  <div class="logo">
-    <span class="ap">AP</span><span class="usm">USM</span><span class="dot"></span><span class="sub">Apuestas Únicas en Suerte Máxima</span>
+<nav style="background:var(--bg2);border-bottom:3px solid var(--usm-red);padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between;height:56px;font-family:'Segoe UI',system-ui,sans-serif">
+  <div style="font-size:20px;font-weight:800;color:var(--text);letter-spacing:-.5px;font-family:'Segoe UI',system-ui,sans-serif;display:flex;align-items:center;line-height:1">
+    <span style="color:var(--text);font-family:'Segoe UI',system-ui,sans-serif">AP</span><span style="color:var(--usm-red);font-family:'Segoe UI',system-ui,sans-serif">USM</span><span style="background:var(--usm-yellow);width:7px;height:7px;border-radius:50%;display:inline-block;margin:0 5px;flex-shrink:0"></span><span style="font-size:10px;font-weight:500;color:var(--text3);letter-spacing:.04em;font-family:'Segoe UI',system-ui,sans-serif">Apuestas Únicas en Suerte Máxima</span>
   </div>
   <div class="nav-links">
     {% if session.role == 'admin' %}
