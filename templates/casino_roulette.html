@@ -99,12 +99,14 @@
   }
   
   @keyframes ballSpin{
-    0%{opacity:0;transform:translate(-50%,-50%) rotate(0deg) translateX(70px) rotate(0deg);}
-    20%{opacity:1;transform:translate(-50%,-50%) rotate(180deg) translateX(70px) rotate(-180deg);}
-    40%{transform:translate(-50%,-50%) rotate(360deg) translateX(65px) rotate(-360deg);}
-    60%{transform:translate(-50%,-50%) rotate(540deg) translateX(60px) rotate(-540deg);}
-    80%{opacity:1;transform:translate(-50%,-50%) rotate(720deg) translateX(55px) rotate(-720deg);}
-    100%{opacity:1;transform:translate(-50%,-50%) rotate(900deg) translateX(50px) rotate(-900deg);}
+    0%{opacity:0;transform:translate(-50%,-50%) rotate(0deg) translateX(80px) rotate(0deg);}
+    15%{opacity:1;transform:translate(-50%,-50%) rotate(270deg) translateX(78px) rotate(-270deg);}
+    30%{transform:translate(-50%,-50%) rotate(540deg) translateX(72px) rotate(-540deg);}
+    45%{transform:translate(-50%,-50%) rotate(720deg) translateX(65px) rotate(-720deg);}
+    60%{transform:translate(-50%,-50%) rotate(900deg) translateX(58px) rotate(-900deg);}
+    75%{opacity:1;transform:translate(-50%,-50%) rotate(1080deg) translateX(52px) rotate(-1080deg);}
+    90%{transform:translate(-50%,-50%) rotate(1260deg) translateX(48px) rotate(-1260deg);}
+    100%{opacity:1;transform:translate(-50%,-50%) rotate(1440deg) translateX(45px) rotate(-1440deg);}
   }
   
   .ball-landing{
@@ -112,8 +114,9 @@
   }
   
   @keyframes ballLand{
-    0%{transform:translate(-50%,-50%) rotate(900deg) translateX(50px) rotate(-900deg) scale(1);}
-    100%{transform:translate(-50%,-50%) rotate(900deg) translateX(40px) rotate(-900deg) scale(2);}
+    0%{transform:translate(-50%,-50%) rotate(1440deg) translateX(45px) rotate(-1440deg) scale(1);}
+    50%{transform:translate(-50%,-50%) rotate(1440deg) translateX(42px) rotate(-1440deg) scale(1.5);}
+    100%{transform:translate(-50%,-50%) rotate(1440deg) translateX(40px) rotate(-1440deg) scale(3);}
   }
   
   .wheel-spinning{
@@ -122,23 +125,25 @@
   
   @keyframes wheelRotate{
     0%{transform:rotate(0deg);}
-    100%{transform:rotate(1800deg);}
+    100%{transform:rotate(2160deg);}
   }
   
   .result-display{
-    position:absolute;top:10px;left:50%;transform:translateX(-50%);
-    background:rgba(0,0,0,.8);color:var(--gold);
-    padding:8px 16px;border-radius:20px;font-weight:700;
-    font-size:14px;opacity:0;z-index:20;
+    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    background:rgba(0,0,0,.9);color:var(--gold);
+    padding:12px 20px;border-radius:25px;font-weight:700;
+    font-size:18px;opacity:0;z-index:25;
+    border:2px solid var(--gold);box-shadow:0 0 20px rgba(201,168,76,.6);
   }
   
   .result-show{
-    animation:showResult 1s ease-out 3s forwards;
+    animation:showResult 1.5s ease-out 3.5s forwards;
   }
   
   @keyframes showResult{
-    0%{opacity:0;transform:translateX(-50%) scale(0.8);}
-    100%{opacity:1;transform:translateX(-50%) scale(1.2);}
+    0%{opacity:0;transform:translate(-50%,-50%) scale(0.5);}
+    50%{opacity:1;transform:translate(-50%,-50%) scale(1.8);}
+    100%{opacity:1;transform:translate(-50%,-50%) scale(2.5);}
   }
 
   /* Tablero */
@@ -431,45 +436,47 @@ async function spinWheel(){
   const wn = d.winning_number;
   const wheelOrder = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26, 37];
   const winningIndex = wheelOrder.indexOf(wn);
-  const targetAngle = (winningIndex * 360 / 38) + 1800; // 5 full rotations + final position
+  const targetAngle = (winningIndex * 360 / 38) + 2160; // 6 full rotations + final position
   
-  // Apply final rotation
+  // Apply final rotation synchronized with ball
   setTimeout(() => {
     wheel.style.transform = `rotate(${targetAngle}deg)`;
     
-    // Ball landing animation with zoom
+    // Ball landing animation with zoom into winning number
     setTimeout(() => {
       ball.classList.remove('ball-spinning');
       ball.classList.add('ball-landing');
       
-      // Show result with zoom effect
-      resultDisplay.textContent = `Número: ${d.winning_label}`;
-      resultDisplay.style.color = wn===0||wn===37 ? '#2ecc71' : REDS.has(wn) ? '#e74c3c' : '#ecf0f1';
-      resultDisplay.classList.add('result-show');
-      
-      // Update banner
-      const banner = document.getElementById('result-banner');
-      if(d.net > 0){
-        banner.className='result-banner win';
-        banner.textContent=`✓ Ganaste $${d.net.toLocaleString()} — Número: ${d.winning_label}`;
-      } else {
-        banner.className='result-banner lose';
-        banner.textContent=`✗ Perdiste $${Math.abs(d.net).toLocaleString()} — Número: ${d.winning_label}`;
-      }
-      banner.style.display='block';
-      
-      // Update balance
-      document.getElementById('balance-display').textContent='$'+d.new_balance.toLocaleString('es-CL');
-      
-      // Clear bets and re-enable button
+      // Show result with dramatic zoom effect
       setTimeout(() => {
-        clearBets();
-        btn.disabled = false;
-        wheel.classList.remove('wheel-spinning');
-        ball.classList.remove('ball-landing');
-        resultDisplay.classList.remove('result-show');
-      }, 2000);
-    }, 3000);
+        resultDisplay.textContent = `¡${d.winning_label}!`;
+        resultDisplay.style.color = wn===0||wn===37 ? '#2ecc71' : REDS.has(wn) ? '#e74c3c' : '#ecf0f1';
+        resultDisplay.classList.add('result-show');
+        
+        // Update banner
+        const banner = document.getElementById('result-banner');
+        if(d.net > 0){
+          banner.className='result-banner win';
+          banner.textContent=`🎉 ¡GANASTE! $${d.net.toLocaleString()} — Número: ${d.winning_label}`;
+        } else {
+          banner.className='result-banner lose';
+          banner.textContent=`Perdiste $${Math.abs(d.net).toLocaleString()} — Número: ${d.winning_label}`;
+        }
+        banner.style.display='block';
+        
+        // Update balance
+        document.getElementById('balance-display').textContent='$'+d.new_balance.toLocaleString('es-CL');
+        
+        // Clear bets and re-enable button after zoom completes
+        setTimeout(() => {
+          clearBets();
+          btn.disabled = false;
+          wheel.classList.remove('wheel-spinning');
+          ball.classList.remove('ball-landing');
+          resultDisplay.classList.remove('result-show');
+        }, 1500);
+      }, 500);
+    }, 3500);
   }, 100);
 
   // Historial
