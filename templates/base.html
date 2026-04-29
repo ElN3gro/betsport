@@ -32,7 +32,7 @@ nav{background:var(--bg2);border-bottom:3px solid var(--usm-red);padding:0 1.5re
 .logo{font-size:20px;font-weight:800;color:var(--text);letter-spacing:-.5px}
 .logo .ap{color:var(--text)}
 .logo .usm{color:var(--usm-red)}
-.logo .dot{color:var(--usm-yellow);margin:0 1px}
+.logo .dot{color:var(--usm-yellow);margin:0 2px;font-size:22px;line-height:1;display:inline-block;vertical-align:middle}
 .logo .sub{font-size:10px;font-weight:500;color:var(--text3);letter-spacing:.04em;margin-left:6px;vertical-align:middle}
 .nav-links{display:flex;align-items:center;gap:8px}
 .nav-links a{color:var(--text2);font-size:13px;padding:6px 12px;border-radius:7px;transition:all .15s}
@@ -132,6 +132,7 @@ tr:last-child td{border-bottom:none}
     {% else %}
       <a href="{{ url_for('dashboard') }}">Eventos</a>
       <a href="{{ url_for('profile') }}">Mi Perfil</a>
+      <a href="{{ url_for('casino.casino_lobby') }}" style="background:linear-gradient(135deg,#c9a84c,#a07730);color:#111;font-weight:600;padding:5px 12px;border-radius:7px;font-size:13px">🎰 Casino</a>
     {% endif %}
     <span style="color:var(--text3);font-size:12px;padding:0 4px">{{ session.username }}</span>
     <a href="{{ url_for('logout') }}" class="btn-logout">Salir</a>

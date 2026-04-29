@@ -318,15 +318,19 @@ def poker_start_hand(rid):
 @casino.route("/casino")
 def casino_lobby():
     if "user_id" not in session: return redirect(url_for("login"))
-    from app import _casino_enabled
+    from app import _casino_enabled, fetchone as fo, get_db
     if not _casino_enabled():
         flash("El casino no está disponible en este momento.", "info")
         return redirect(url_for("dashboard"))
+    # Leer saldo real de DB
+    conn = get_db()
+    user = fo(conn, "SELECT balance FROM users WHERE id=?", (session["user_id"],))
+    conn.close()
+    balance = user["balance"] if user else 0
     bj_rooms  = [(rid,d) for rid,d in _rooms.items() if d["game"]=="blackjack" and d["status"]!="finished"]
     pk_rooms  = [(rid,d) for rid,d in _rooms.items() if d["game"]=="poker"     and d["status"]!="finished"]
     return render_template("casino_lobby.html",
-        bj_rooms=bj_rooms, pk_rooms=pk_rooms,
-        balance=session.get("balance",0))
+        bj_rooms=bj_rooms, pk_rooms=pk_rooms, balance=balance)
 
 @casino.route("/casino/blackjack/join", methods=["POST"])
 def bj_join():
@@ -352,13 +356,17 @@ def bj_room(rid):
     if "user_id" not in session: return redirect(url_for("login"))
     r = get_room(rid)
     if not r: flash("Sala no encontrada.","error"); return redirect(url_for("casino.casino_lobby"))
+    from app import fetchone as fo, get_db
+    conn = get_db(); user = fo(conn,"SELECT balance FROM users WHERE id=?",(session["user_id"],)); conn.close()
     return render_template("casino_bj.html", rid=rid, room=r,
-        uid=str(session["user_id"]), balance=session.get("balance",0))
+        uid=str(session["user_id"]), balance=user["balance"] if user else 0)
 
 @casino.route("/casino/roulette")
 def roulette_page():
     if "user_id" not in session: return redirect(url_for("login"))
-    return render_template("casino_roulette.html", balance=session.get("balance",0))
+    from app import fetchone as fo, get_db
+    conn = get_db(); user = fo(conn,"SELECT balance FROM users WHERE id=?",(session["user_id"],)); conn.close()
+    return render_template("casino_roulette.html", balance=user["balance"] if user else 0)
 
 @casino.route("/casino/poker/join", methods=["POST"])
 def poker_join():
@@ -397,8 +405,10 @@ def poker_room(rid):
     if "user_id" not in session: return redirect(url_for("login"))
     r = get_room(rid)
     if not r: flash("Sala no encontrada.","error"); return redirect(url_for("casino.casino_lobby"))
+    from app import fetchone as fo, get_db
+    conn = get_db(); user = fo(conn,"SELECT balance FROM users WHERE id=?",(session["user_id"],)); conn.close()
     return render_template("casino_poker.html", rid=rid, room=r,
-        uid=str(session["user_id"]), balance=session.get("balance",0))
+        uid=str(session["user_id"]), balance=user["balance"] if user else 0)
 
 @casino.route("/casino/leave/<rid>", methods=["POST"])
 def casino_leave(rid):
