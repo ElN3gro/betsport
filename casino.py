@@ -363,12 +363,29 @@ def roulette_page():
 @casino.route("/casino/poker/join", methods=["POST"])
 def poker_join():
     if "user_id" not in session: return redirect(url_for("login"))
+    uid = str(session["user_id"])
+    # Si ya está en una sala activa, redirigir
+    for rid, d in _rooms.items():
+        if d["game"]=="poker" and uid in d.get("players",{}) and d["status"] != "finished":
+            return redirect(url_for("casino.poker_room", rid=rid))
+    # Limpiar salas terminadas
+    finished = [r for r,d in _rooms.items() if d["game"]=="poker" and d["status"]=="finished"]
+    for r in finished: _rooms.pop(r, None)
     rooms = open_rooms("poker")
     rid   = rooms[0] if rooms else poker_new_room()
     r     = get_room(rid)
-    uid   = str(session["user_id"])
     chips = float(request.form.get("buy_in", 2000))
     chips = max(CASINO_MIN_BET*2, min(chips, CASINO_MAX_BET))
+    # Descontar buy-in del saldo
+    from app import fetchone as fo, execute as ex, get_db
+    conn = get_db()
+    user = fo(conn, "SELECT balance FROM users WHERE id=?", (session["user_id"],))
+    if not user or user["balance"] < chips:
+        conn.close()
+        flash("Saldo insuficiente para el buy-in.", "error")
+        return redirect(url_for("casino.casino_lobby"))
+    ex(conn, "UPDATE users SET balance=balance-? WHERE id=?", (chips, session["user_id"]))
+    conn.commit(); conn.close()
     if uid not in r["players"]:
         r["players"][uid] = {"name":session.get("username","?"), "chips":chips,
             "hand":[], "bet_total":0, "bet_round":0, "status":"waiting", "action":None}
@@ -382,6 +399,48 @@ def poker_room(rid):
     if not r: flash("Sala no encontrada.","error"); return redirect(url_for("casino.casino_lobby"))
     return render_template("casino_poker.html", rid=rid, room=r,
         uid=str(session["user_id"]), balance=session.get("balance",0))
+
+@casino.route("/casino/leave/<rid>", methods=["POST"])
+def casino_leave(rid):
+    if "user_id" not in session: return redirect(url_for("casino.casino_lobby"))
+    uid = str(session["user_id"])
+    r   = get_room(rid)
+    if r and uid in r.get("players", {}):
+        game = r["game"]
+        if r["status"] == "waiting":
+            # Si el juego no inició, devolver apuesta/buy-in
+            p = r["players"][uid]
+            reembolso = p.get("bet", 0) or p.get("chips", 0)
+            if reembolso > 0:
+                from app import execute as ex, get_db
+                conn = get_db()
+                ex(conn, "UPDATE users SET balance=balance+? WHERE id=?", (reembolso, session["user_id"]))
+                conn.commit(); conn.close()
+            del r["players"][uid]
+            if not r["players"]:
+                _rooms.pop(rid, None)
+            else:
+                set_room(rid, r)
+        else:
+            # Juego en curso: marcar como folded/stand para no bloquear la sala
+            p = r["players"][uid]
+            if game == "poker":
+                p["status"] = "folded"; p["action"] = "fold"
+                if r.get("current_turn") == uid:
+                    _poker_advance_turn(rid)
+                    if _poker_phase_done(rid): _poker_next_phase(rid)
+            elif game == "blackjack":
+                p["status"] = "stand"
+                if r.get("current_turn") == uid:
+                    _bj_advance_turn(rid)
+                    if _bj_all_done(rid):
+                        from app import fetchone as fo, execute as ex, get_db
+                        conn = get_db()
+                        bj_resolve_room(conn, rid, fo, ex, _casino_house_log)
+                        conn.commit(); conn.close()
+            set_room(rid, r)
+            _emit_casino_room(rid, None)
+    return redirect(url_for("casino.casino_lobby"))
 
 # ── API JSON ───────────────────────────────────────────────────────────────────
 

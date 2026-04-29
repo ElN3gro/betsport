@@ -103,6 +103,7 @@
 <div class="bj-wrap">
   <div class="bj-table">
     <div class="bj-title">♠ Blackjack · Paga 3:2 · Dealer planta en 17 ♠</div>
+    <div style="text-align:right;font-size:12px;color:var(--gold);margin-bottom:8px">Saldo: <strong id="balance-display-bj">${{ "{:,.0f}".format(balance) }}</strong></div>
 
     <!-- Dealer -->
     <div class="dealer-zone">
@@ -147,6 +148,11 @@
     </div>
   </div>
   <a href="{{ url_for('casino.casino_lobby') }}" class="back-link">← Volver al lobby</a>
+  <form method="POST" action="{{ url_for('casino.casino_leave', rid=rid) }}" style="text-align:center;margin-top:8px">
+    <button type="submit" style="background:rgba(231,76,60,.15);border:1px solid rgba(231,76,60,.3);color:#e74c3c;border-radius:8px;padding:8px 20px;font-size:12px;cursor:pointer">
+      Salir de la sala
+    </button>
+  </form>
 </div>
 
 <script>
@@ -297,6 +303,16 @@ function renderRoom(r){
 // Socket para tiempo real
 socket.on('casino_state', function(r) {
   if (r && r.game === 'blackjack') renderRoom(r);
+});
+
+// Actualizar saldo cuando haya cambio externo
+socket.on('update', function() {
+  fetch('/api/me/balance').then(r=>r.json()).then(d=>{
+    if(d.balance !== undefined) {
+      const el = document.getElementById('balance-display-bj');
+      if(el) el.textContent = '$'+Math.round(d.balance).toLocaleString('es-CL');
+    }
+  });
 });
 
 socket.on('connect', function() {

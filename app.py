@@ -1288,6 +1288,18 @@ def update_score(eid):
     emit_update("score_updated")
     return redirect(url_for("admin_panel"))
 
+@app.route("/api/me/balance")
+@login_required
+def api_me_balance():
+    conn = get_db()
+    try:
+        user = fetchone(conn, "SELECT balance FROM users WHERE id=?", (session["user_id"],))
+        bal  = user["balance"] if user else 0
+        session["balance"] = bal
+    finally:
+        conn.close()
+    return jsonify({"balance": bal})
+
 # ── CASINO ────────────────────────────────────────────────────────────────────
 
 @app.route("/api/casino/poker/start", methods=["POST"])

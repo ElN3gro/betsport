@@ -302,7 +302,7 @@ async function spinWheel(){
   }
   banner.style.display='block';
 
-  document.getElementById('balance-display').textContent='$'+d.new_balance.toLocaleString();
+  document.getElementById('balance-display').textContent='$'+d.new_balance.toLocaleString('es-CL');
   clearBets();
   btn.disabled=false;
 }

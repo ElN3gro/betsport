@@ -24,7 +24,7 @@
     -webkit-background-clip:text;-webkit-text-fill-color:transparent;
     letter-spacing:3px;
   }
-  .casino-sub{ font-family:'DM Sans',sans-serif;color:var(--text3);font-size:13px;margin-top:6px;letter-spacing:2px;text-transform:uppercase }
+  .casino-sub{ font-family:'DM Sans',sans-serif;color:var(--text3);font-size:13px;margin-top:6px;letter-spacing:2px }
   .balance-pill{
     display:inline-flex;align-items:center;gap:8px;
     background:rgba(201,168,76,.12);border:1px solid var(--gold);
@@ -87,8 +87,8 @@
 <div class="casino-wrap">
   <div class="casino-header">
     <div class="casino-logo">🃏 APUSM CASINO</div>
-    <div class="casino-sub">Juega con estilo · Paga en efectivo</div>
-    <div class="balance-pill">💰 Saldo disponible: <strong>${{ "{:,.0f}".format(balance) }}</strong></div>
+    <div class="casino-sub">Juega con estilo &middot; Paga en efectivo</div>
+    <div class="balance-pill">💰 Saldo disponible: <strong id="lobby-balance">${{ "{:,.0f}".format(balance) }}</strong></div>
   </div>
 
   <!-- Juegos -->
@@ -150,4 +150,14 @@
     · Para retirar saldo, habla con el administrador como siempre.
   </div>
 </div>
+
+<script>
+// Actualizar saldo en tiempo real
+socket.on('update', function(payload) {
+  fetch('/api/me/balance').then(r=>r.json()).then(d=>{
+    if(d.balance !== undefined)
+      document.getElementById('lobby-balance').textContent = '$'+Math.round(d.balance).toLocaleString('es-CL');
+  }).catch(()=>{});
+});
+</script>
 {% endblock %}
