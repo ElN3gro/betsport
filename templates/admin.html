@@ -366,7 +366,7 @@ function toggleDraw(show) {
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
     <div>
       <div style="font-size:11px;color:var(--text3);margin-bottom:3px">
-        {{ '⚽' if ev['sport'] in ('futbol','fútbol','football','soccer') else '🏀' if ev['sport'] in ('basketball','basquetbol') else '🎮' }} {{ ev['league'] }}
+        {{ ev['sport']|sport_emoji }} {{ ev['league'] }}
         — {{ ed.count }} apostadores — % cancha: {{ "%.0f"|format(ev['field_cut_pct']*100) }}%
         — odds: {{ ev['odds_mode'] }}
       </div>

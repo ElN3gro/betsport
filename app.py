@@ -31,6 +31,36 @@ HOUSE_CUT = 0.08
 FIELD_CUT = 0.07
 MIN_ODD   = 1.01
 
+# ── Emoji por deporte: mapeo centralizado (antes duplicado e incompleto en cada template) ──
+SPORT_EMOJIS = {
+    "futbol": "⚽", "fútbol": "⚽", "football": "⚽", "soccer": "⚽",
+    "basketball": "🏀", "basquetbol": "🏀", "básquetbol": "🏀", "basket": "🏀",
+    "voley": "🏐", "vóley": "🏐", "voleibol": "🏐", "volleyball": "🏐", "volley": "🏐",
+    "tenis": "🎾", "tennis": "🎾",
+    "ping pong": "🏓", "pingpong": "🏓", "tenis de mesa": "🏓", "table tennis": "🏓",
+    "beisbol": "⚾", "béisbol": "⚾", "baseball": "⚾",
+    "boxeo": "🥊", "boxing": "🥊",
+    "rugby": "🏉",
+    "hockey": "🏒",
+    "mma": "🥋", "artes marciales": "🥋", "ufc": "🥋",
+    "ciclismo": "🚴", "cycling": "🚴",
+    "natacion": "🏊", "natación": "🏊", "swimming": "🏊",
+    "atletismo": "🏃", "running": "🏃", "maraton": "🏃", "maratón": "🏃",
+    "golf": "⛳",
+    "ajedrez": "♟️", "chess": "♟️",
+    "formula 1": "🏎️", "f1": "🏎️", "automovilismo": "🏎️",
+    "esports": "🎮", "e-sports": "🎮", "videojuegos": "🎮", "gaming": "🎮",
+    "poker": "🃏", "póker": "🃏",
+}
+def sport_emoji(sport):
+    """Devuelve el emoji correspondiente al deporte (insensible a mayúsculas/acentos exactos).
+    Si no coincide con ningún deporte conocido, usa un ícono de trofeo genérico en vez de 🎮
+    (que antes se usaba para TODO deporte no reconocido, incluyendo deportes reales)."""
+    if not sport:
+        return "🏆"
+    key = str(sport).strip().lower()
+    return SPORT_EMOJIS.get(key, "🏆")
+
 def now(): return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 def hp(pw): return generate_password_hash(pw)  # salted hash (werkzeug/scrypt)
 def _legacy_sha256(pw): return hashlib.sha256(pw.encode()).hexdigest()
@@ -251,6 +281,8 @@ def recalc_auto_odds(conn, eid):
 def emit_update(event_type, data=None):
     """Emite un evento a todos los clientes conectados."""
     socketio.emit("update", {"type": event_type, "data": data or {}})
+
+app.jinja_env.filters["sport_emoji"] = sport_emoji
 
 @app.route("/healthz")
 def healthz():

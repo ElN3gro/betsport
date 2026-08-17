@@ -53,7 +53,7 @@
       {% for b in bets %}
       <tr>
         <td>
-          <div style="font-size:11px;color:var(--text3)">{{ '⚽' if b['sport']=='futbol' else '🏀' }} {{ b['league'] }}</div>
+          <div style="font-size:11px;color:var(--text3)">{{ b['sport']|sport_emoji }} {{ b['league'] }}</div>
           <div style="font-size:13px">{{ b['home'] }} vs {{ b['away'] }}</div>
           <div style="font-size:10px;color:var(--text3)">{{ b['created_at'][:16] }}</div>
         </td>

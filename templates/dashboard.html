@@ -1,20 +1,20 @@
 {% extends "base.html" %}
-{% block title %}Eventos — APUSM{% endblock %}
+{% block title %}Apuestas — APUSM{% endblock %}
 {% block content %}
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
   <div>
-    <div style="font-size:20px;font-weight:600">Eventos disponibles</div>
-    <div style="font-size:13px;color:var(--text3)">Hola, {{ user['full_name'] }}</div>
+    <div style="font-size:19px;font-weight:700">Hola, {{ user['full_name'].split(' ')[0] }}</div>
   </div>
-  <div style="text-align:right">
-    <div style="font-size:11px;color:var(--text3)">Tu saldo</div>
-    <div style="font-size:22px;font-weight:700;color:var(--green)">${{ "%.0f"|format(user['balance']) }}</div>
+  <div style="text-align:right;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:8px 16px">
+    <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.04em">Saldo</div>
+    <div style="font-size:20px;font-weight:800;color:var(--odd-l)">${{ "%.0f"|format(user['balance']) }}</div>
   </div>
 </div>
 
 {% if not edata %}
-<div class="card" style="text-align:center;padding:40px;color:var(--text3)">
-  No hay eventos disponibles en este momento.
+<div class="card" style="text-align:center;padding:48px 20px;color:var(--text3)">
+  🏆 No hay eventos disponibles por ahora.<br>
+  <span style="font-size:12px">Vuelve más tarde.</span>
 </div>
 {% endif %}
 
@@ -22,50 +22,40 @@
 {% set ev = ed.event %}
 {% set odds = ed.odds %}
 <div class="card">
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
-    <div>
-      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">
-        {{ '⚽' if ev['sport'] in ('futbol','fútbol','football','soccer') else '🏀' if ev['sport'] in ('basketball','basquetbol') else '🎮' }} {{ ev['league'] }}
-      </div>
-      <div style="font-size:18px;font-weight:600">{{ ev['home'] }} <span style="color:var(--text3);font-size:13px">vs</span> {{ ev['away'] }}</div>
-      {% set sh = ev.get('score_home', 0) %}
-      {% set sa = ev.get('score_away', 0) %}
-      {% if sh > 0 or sa > 0 %}
-      <div style="margin-top:6px;display:inline-flex;align-items:center;gap:8px;background:var(--bg3);border-radius:6px;padding:4px 12px">
-        <span style="font-size:11px;color:var(--text3)">{{ ev.get('score_label','Marcador') }}</span>
-        <span style="font-size:18px;font-weight:700;color:var(--text)">{{ sh }}</span>
-        <span style="color:var(--text3)">—</span>
-        <span style="font-size:18px;font-weight:700;color:var(--text)">{{ sa }}</span>
-      </div>
-      {% endif %}
+  <!-- Cabecera simple: deporte + equipos + estado, todo en una línea visual -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px">
+    <div style="font-size:11px;color:var(--text3);display:flex;align-items:center;gap:5px">
+      <span style="font-size:14px">{{ ev['sport']|sport_emoji }}</span> {{ ev['league'] }}
     </div>
-    <div style="text-align:right">
-      {% if ev['status'] == 'open' %}
-        <span class="badge badge-open">Apuestas abiertas</span>
-      {% else %}
-        <span class="badge badge-closed">Apuestas cerradas</span>
-      {% endif %}
-    </div>
+    {% if ev['status'] == 'open' %}
+      <span class="badge badge-open">Abierto</span>
+    {% else %}
+      <span class="badge badge-closed">Cerrado</span>
+    {% endif %}
   </div>
 
-  <!-- Estado de entrada -->
+  <div style="font-size:17px;font-weight:700;margin-bottom:8px">{{ ev['home'] }} <span style="color:var(--text3);font-weight:400;font-size:13px">vs</span> {{ ev['away'] }}</div>
+
+  {% set sh = ev.get('score_home', 0) %}
+  {% set sa = ev.get('score_away', 0) %}
+  {% if sh > 0 or sa > 0 %}
+  <div style="display:inline-flex;align-items:center;gap:8px;background:var(--bg3);border-radius:6px;padding:3px 12px;margin-bottom:10px;font-size:15px;font-weight:700">
+    {{ sh }} <span style="color:var(--text3);font-weight:400">—</span> {{ sa }}
+  </div>
+  {% endif %}
+
+  <!-- Entrada: una sola línea de acción, sin caja pesada -->
   {% if not ed.has_entry %}
-    <div style="background:var(--amber-bg);border:1px solid rgba(245,158,11,.25);border-radius:var(--r);padding:12px 14px;margin-bottom:14px">
-      <div style="font-size:13px;font-weight:500;color:var(--amber);margin-bottom:6px">
-        🎫 Cuota de entrada: ${{ "%.0f"|format(ev['entry_fee']) }} (pago en efectivo al admin)
-      </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--amber-bg);border-radius:8px;padding:10px 14px;margin-bottom:12px">
+      <span style="font-size:12.5px;color:var(--amber)">🎫 Entrada: ${{ "%.0f"|format(ev['entry_fee']) }} (pago en efectivo al admin)</span>
       {% if ed.pending_entry %}
-        <div style="font-size:12px;color:var(--text2)">⏳ Solicitud enviada — espera confirmación del admin</div>
+        <span style="font-size:11px;color:var(--text2);white-space:nowrap">⏳ Pendiente</span>
       {% else %}
-        <form method="POST" action="{{ url_for('request_entry', eid=ev['id']) }}">
-          <button type="submit" class="btn btn-sm" style="border-color:var(--amber);color:var(--amber)">
-            Solicitar entrada
-          </button>
+        <form method="POST" action="{{ url_for('request_entry', eid=ev['id']) }}" style="margin:0">
+          <button type="submit" class="btn btn-sm" style="border-color:var(--amber);color:var(--amber)">Solicitar</button>
         </form>
       {% endif %}
     </div>
-  {% else %}
-    <div style="font-size:12px;color:var(--green);margin-bottom:12px">✓ Entrada confirmada</div>
   {% endif %}
 
   <!-- Odds: botones clicables estilo casa de apuestas real -->
@@ -74,7 +64,7 @@
       {% if o['odd'] <= 1.01 %}
       <div class="odd-btn blocked">
         <div class="odd-key">{{ o['label'] }}</div>
-        <div class="odd-val" style="font-size:12px;color:var(--red)">🔒 CERRADO</div>
+        <div class="odd-val" style="font-size:12px;color:var(--red)">🔒</div>
       </div>
       {% else %}
       <button type="button" class="odd-btn"
@@ -87,72 +77,51 @@
       {% endif %}
     {% endfor %}
   </div>
-  {% for o in odds %}{% if o['odd'] > 1.01 %}
-  <div style="font-size:10px;color:var(--text3);margin-top:4px;display:inline-block;margin-right:10px">{{ o['label'] }}: ${{ "%.0f"|format(o['total_bet']) }} apostados</div>
-  {% endif %}{% endfor %}
 
   {% if ed.has_entry and not ed.bets_open %}
-  <div style="margin-top:12px;font-size:12px;color:var(--amber)">
-    ⚠️ Las apuestas están cerradas por el momento.
-  </div>
+  <div style="margin-top:10px;font-size:12px;color:var(--amber)">⚠️ Apuestas cerradas por ahora.</div>
   {% endif %}
-  <!-- Form real que envía la solicitud (lo llena el boleto flotante) -->
+
   <form id="betform-{{ ev['id'] }}" method="POST" action="{{ url_for('request_bet', eid=ev['id']) }}" style="display:none">
     <input type="hidden" name="option_key" id="opt-{{ ev['id'] }}">
     <input type="hidden" name="amount" id="amt-{{ ev['id'] }}">
   </form>
 
-  <!-- Mis solicitudes de apuesta para este evento -->
+  <!-- Mis solicitudes: chips compactos en vez de lista pesada -->
   {% if ed.my_bet_reqs %}
-  <div style="margin-top:12px;font-size:12px">
-    <div style="color:var(--text3);margin-bottom:6px">Mis solicitudes de apuesta:</div>
+  <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">
     {% for br in ed.my_bet_reqs %}
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--bg3);border-radius:6px;margin-bottom:4px">
-      <span>
-        {{ br['option_label'] }} — ${{ "%.0f"|format(br['amount']) }}
-        <span style="color:var(--text3);font-size:11px">@ {{ "%.2f"|format(br['odd_at_request']) }}x cuando solicité</span>
-      </span>
-      <div style="display:flex;align-items:center;gap:8px">
-        <span class="badge badge-{{ br['status'] }}">{{ br['status'] }}</span>
-        {% if br['status'] == 'pending' %}
-        <form method="POST" action="{{ url_for('cancel_bet_request', brid=br['id']) }}" style="margin:0">
-          <button class="btn btn-sm btn-danger" style="padding:2px 8px;font-size:10px">✕</button>
-        </form>
-        {% endif %}
-      </div>
-    </div>
+    <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;background:var(--bg3);border-radius:14px;padding:4px 10px">
+      {{ br['option_label'] }} · ${{ "%.0f"|format(br['amount']) }}
+      <span class="badge badge-{{ br['status'] }}" style="padding:1px 7px;font-size:10px">{{ br['status'] }}</span>
+      {% if br['status'] == 'pending' %}
+      <form method="POST" action="{{ url_for('cancel_bet_request', brid=br['id']) }}" style="margin:0;display:inline">
+        <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:0">✕</button>
+      </form>
+      {% endif %}
+    </span>
     {% endfor %}
   </div>
   {% endif %}
 </div>
 {% endfor %}
 
-<!-- Mis apuestas confirmadas -->
+<!-- Mis apuestas confirmadas: tarjetas apilables, no tabla ancha (mejor en celular) -->
 {% if my_bets %}
-<div class="section-title">Mis apuestas confirmadas</div>
-<div class="card" style="padding:0;overflow:hidden">
-  <table>
-    <thead>
-      <tr><th>Partido</th><th>Opción</th><th>Apuesta</th><th>Cuota</th><th>Potencial</th><th>Estado</th><th>Pago</th></tr>
-    </thead>
-    <tbody>
-      {% for b in my_bets %}
-      <tr>
-        <td>
-          <div style="font-size:12px;color:var(--text2)">{{ '⚽' if b['sport']=='futbol' else '🏀' }} {{ b['league'] }}</div>
-          <div style="font-size:13px">{{ b['home'] }} vs {{ b['away'] }}</div>
-        </td>
-        <td>{{ b['option_label'] }}</td>
-        <td>${{ "%.0f"|format(b['amount']) }}</td>
-        <td>{{ "%.2f"|format(b['odd_at_bet']) }}x</td>
-        <td>${{ "%.0f"|format(b['potential']) }}</td>
-        <td><span class="badge badge-{{ b['result'] }}">{{ b['result'] }}</span></td>
-        <td>{% if b['result']=='won' %}<span style="color:var(--green);font-weight:600">${{ "%.0f"|format(b['payout']) }}</span>{% else %}—{% endif %}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<div class="section-title">Mis apuestas</div>
+{% for b in my_bets %}
+<div class="card" style="padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px">
+  <div>
+    <div style="font-size:11px;color:var(--text3)">{{ b['sport']|sport_emoji }} {{ b['home'] }} vs {{ b['away'] }}</div>
+    <div style="font-size:13.5px;font-weight:600;margin-top:2px">{{ b['option_label'] }} <span style="color:var(--text3);font-weight:400">@ {{ "%.2f"|format(b['odd_at_bet']) }}x</span></div>
+    <div style="font-size:11px;color:var(--text2);margin-top:2px">Apostado: ${{ "%.0f"|format(b['amount']) }} · Potencial: ${{ "%.0f"|format(b['potential']) }}</div>
+  </div>
+  <div style="text-align:right">
+    <span class="badge badge-{{ b['result'] }}">{{ b['result'] }}</span>
+    {% if b['result']=='won' %}<div style="color:var(--odd-l);font-weight:700;font-size:14px;margin-top:4px">${{ "%.0f"|format(b['payout']) }}</div>{% endif %}
+  </div>
 </div>
+{% endfor %}
 {% endif %}
 
 <!-- Boleto de apuesta flotante (betslip) -->

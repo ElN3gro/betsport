@@ -69,7 +69,7 @@
           {% for e in entries %}
           <tr>
             <td>{{ e['home'] }} vs {{ e['away'] }}</td>
-            <td>{{ '⚽' if e['sport']=='futbol' else '🏀' }}</td>
+            <td>{{ e['sport']|sport_emoji }}</td>
             <td>${{ "%.0f"|format(e['entry_fee']) }}</td>
             <td style="font-size:11px;color:var(--text3)">{{ e['paid_at'][:16] }}</td>
             <td>
@@ -100,7 +100,7 @@
           <div>
             <div style="font-size:13px;font-weight:500">{{ ev['home'] }} vs {{ ev['away'] }}</div>
             <div style="font-size:11px;color:var(--text3)">
-              {{ '⚽' if ev['sport']=='futbol' else '🏀' }} {{ ev['league'] }}
+              {{ ev['sport']|sport_emoji }} {{ ev['league'] }}
               — Cuota: ${{ "%.0f"|format(ev['entry_fee']) }}
               — <span class="badge badge-{{ ev['status'] }}">{{ ev['status'] }}</span>
             </div>
@@ -133,7 +133,7 @@
       <tr>
         <td style="font-size:11px;color:var(--text3)">{{ b['created_at'][:16] }}</td>
         <td>
-          <div style="font-size:11px;color:var(--text3)">{{ '⚽' if b['sport']=='futbol' else '🏀' }} {{ b['league'] }}</div>
+          <div style="font-size:11px;color:var(--text3)">{{ b['sport']|sport_emoji }} {{ b['league'] }}</div>
           <div>{{ b['home'] }} vs {{ b['away'] }}</div>
         </td>
         <td>{{ b['option_label'] }}</td>
