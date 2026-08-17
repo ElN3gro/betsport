@@ -36,9 +36,26 @@ document.addEventListener('DOMContentLoaded', function() {
 
 {% endblock %}
 {% block content %}
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
   <div style="font-size:20px;font-weight:600">Panel de Administración</div>
   <span class="badge badge-admin">Admin</span>
+</div>
+
+<!-- ── QUICK NAV: acceso directo a cada sección, con contador de pendientes ── -->
+<div class="admin-quicknav">
+  <a href="#sec-bets" class="qn-item {{ 'qn-alert' if pending_bets }}">
+    🎲 Apuestas {% if pending_bets %}<span class="qn-count">{{ pending_bets|length }}</span>{% endif %}
+  </a>
+  {% if rejected_auto_bets %}
+  <a href="#sec-rejected" class="qn-item qn-alert">⚠️ Rechazadas <span class="qn-count">{{ rejected_auto_bets|length }}</span></a>
+  {% endif %}
+  <a href="#sec-entries" class="qn-item {{ 'qn-alert' if pending_entries }}">
+    💵 Entradas {% if pending_entries %}<span class="qn-count">{{ pending_entries|length }}</span>{% endif %}
+  </a>
+  <a href="#sec-tokens" class="qn-item">🎟️ Tokens</a>
+  <a href="#sec-events" class="qn-item">🏆 Eventos</a>
+  <a href="#sec-users" class="qn-item">👥 Usuarios</a>
+  <a href="#sec-danger" class="qn-item qn-danger">🗑️ Reset</a>
 </div>
 
 <div class="stats-grid">
@@ -85,7 +102,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- ── SOLICITUDES DE APUESTA PENDIENTES ──────────────────────── -->
 {% if pending_bets %}
-<div class="section-title">🎲 Solicitudes de apuesta — requieren tu aprobación</div>
+<div class="section-title" id="sec-bets">🎲 Solicitudes de apuesta — requieren tu aprobación</div>
 <div class="card" style="border-color:rgba(59,130,246,.3);padding:0;overflow:hidden">
   <table>
     <thead><tr><th>Jugador</th><th>Teléfono</th><th>Partido</th><th>Opción</th><th>Monto</th><th>Cuota al solicitar</th><th>Disponible</th><th>Fecha</th><th>Acciones</th></tr></thead>
@@ -133,7 +150,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- ── APUESTAS RECHAZADAS AUTOMÁTICAMENTE ─────────────────────── -->
 {% if rejected_auto_bets %}
-<div class="section-title">⚠️ Apuestas rechazadas por límite de cobertura</div>
+<div class="section-title" id="sec-rejected">⚠️ Apuestas rechazadas por límite de cobertura</div>
 <div class="card" style="border-color:rgba(239,68,68,.25);padding:0;overflow:hidden">
   <div style="padding:10px 16px;background:rgba(239,68,68,.08);font-size:12px;color:var(--text2)">
     Estas apuestas fueron rechazadas automáticamente porque excedían la capacidad de pago de la casa al presionar "Aprobar todas". Puedes reactivarlas como pendientes si agregas más presupuesto.
@@ -169,7 +186,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- ── PAGOS DE ENTRADA PENDIENTES ────────────────────────────── -->
 {% if pending_entries %}
-<div class="section-title">⚠️ Cuotas de entrada pendientes (apostadores web)</div>
+<div class="section-title" id="sec-entries">⚠️ Cuotas de entrada pendientes (apostadores web)</div>
 <div class="card" style="border-color:rgba(245,158,11,.3);padding:0;overflow:hidden">
   <table>
     <thead><tr><th>Jugador</th><th>Teléfono</th><th>Concepto</th><th>Cuota</th><th>Fecha</th><th>Acciones</th></tr></thead>
@@ -200,7 +217,7 @@ document.addEventListener('DOMContentLoaded', function() {
 {% endif %}
 
 <!-- ── TOKENS ──────────────────────────────────────────────────── -->
-<div class="section-title">Tokens de registro</div>
+<div class="section-title" id="sec-tokens">Tokens de registro</div>
 <div class="grid2">
   <div class="card">
     <div class="card-title">Crear nuevo token</div>
@@ -239,7 +256,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 
 <!-- ── CREAR EVENTO ────────────────────────────────────────────── -->
-<div class="section-title">Eventos</div>
+<div class="section-title" id="sec-events">Eventos</div>
 <div class="card">
   <div class="card-title">Crear evento</div>
   <form method="POST" action="{{ url_for('create_event') }}">
@@ -628,7 +645,7 @@ function toggleDraw(show) {
 {% endfor %}
 
 <!-- ── CREAR USUARIO ────────────────────────────────────────────── -->
-<div class="section-title">Usuarios</div>
+<div class="section-title" id="sec-users">Usuarios</div>
 <div class="card">
   <div class="card-title">Crear usuario</div>
   <form method="POST" action="{{ url_for('create_user') }}">
@@ -710,7 +727,7 @@ function toggleDraw(show) {
 </div>
 
 <!-- ── RESET DE DATOS ───────────────────────────────────────────── -->
-<div class="section-title" style="color:var(--red)">⚠️ Zona peligrosa</div>
+<div class="section-title" id="sec-danger" style="color:var(--red)">⚠️ Zona peligrosa</div>
 <div class="card" style="border-color:rgba(239,68,68,.3)">
   <div class="card-title" style="color:var(--red)">Reset de datos de prueba</div>
   <div style="font-size:13px;color:var(--text2);margin-bottom:12px">

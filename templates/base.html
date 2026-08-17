@@ -7,37 +7,53 @@
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#0d0f14;--bg2:#13161f;--bg3:#1c2030;
-  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.15);
-  --text:#f0f0f0;--text2:#9ca3af;--text3:#6b7280;
+  /* Fondo tipo sportsbook: azul-negro profundo, no negro puro */
+  --bg:#0b0e14;--bg2:#111621;--bg3:#1a2133;--bg4:#232c44;
+  --border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.16);
+  --text:#eef1f7;--text2:#9aa4bd;--text3:#5f6b87;
 
-  /* Colores USM: rojo, amarillo, azul */
-  --usm-red:#c8102e;--usm-red-l:#e8354f;--usm-red-bg:rgba(200,16,46,0.13);
+  /* Identidad USM conservada como acento de marca */
+  --usm-red:#c8102e;--usm-red-l:#ff4d68;--usm-red-bg:rgba(200,16,46,0.14);
   --usm-yellow:#f5c518;--usm-yellow-bg:rgba(245,197,24,0.12);
   --usm-blue:#003da5;--usm-blue-l:#4d7fd4;--usm-blue-bg:rgba(0,61,165,0.18);
 
-  /* Mapeo a las variables genéricas que usa el resto del código */
+  /* Verde "cuota" estilo 1xbet/Betano: es EL color de acción de toda casa de apuestas */
+  --odd:#16b978;--odd-l:#2fe39a;--odd-bg:rgba(22,185,120,0.14);
+  --odd-hover:#13a267;
+
+  /* Mapeo a variables genéricas usadas en el resto del código */
   --blue:var(--usm-blue);--blue-l:var(--usm-blue-l);--blue-bg:var(--usm-blue-bg);
-  --green:#22c55e;--green-bg:rgba(34,197,94,0.12);
+  --green:var(--odd);--green-bg:var(--odd-bg);
   --red:var(--usm-red-l);--red-bg:var(--usm-red-bg);
   --amber:var(--usm-yellow);--amber-bg:var(--usm-yellow-bg);
   --r:10px;--rl:14px;
 }
-body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
+body{background:var(--bg);color:var(--text);font-family:'Inter','Segoe UI',system-ui,sans-serif;min-height:100vh;
+  background-image:radial-gradient(circle at 15% 0%, rgba(0,61,165,0.10), transparent 45%),radial-gradient(circle at 85% 0%, rgba(22,185,120,0.07), transparent 40%);
+  background-attachment:fixed;
+}
 a{color:var(--blue-l);text-decoration:none}
 a:hover{text-decoration:underline}
 
 /* NAV */
-nav{background:var(--bg2);border-bottom:3px solid var(--usm-red);padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between;height:56px;font-family:'Segoe UI',system-ui,sans-serif}
-.logo{font-size:20px;font-weight:800;color:var(--text);letter-spacing:-.5px;font-family:'Segoe UI',system-ui,sans-serif}
+nav{background:linear-gradient(180deg,var(--bg2),var(--bg));border-bottom:1px solid var(--border);box-shadow:0 2px 0 var(--usm-red);padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between;height:58px;position:sticky;top:0;z-index:50}
+.logo{font-size:20px;font-weight:800;color:var(--text);letter-spacing:-.5px}
 .logo .ap{color:var(--text)}
 .logo .usm{color:var(--usm-red)}
-.logo .dot{background:var(--usm-yellow);width:7px;height:7px;border-radius:50%;display:inline-block;vertical-align:middle;margin:0 5px;position:relative;top:-1px}
+.logo .dot{background:var(--odd);width:7px;height:7px;border-radius:50%;display:inline-block;vertical-align:middle;margin:0 5px;position:relative;top:-1px;box-shadow:0 0 8px var(--odd)}
 .logo .sub{font-size:10px;font-weight:500;color:var(--text3);letter-spacing:.04em;margin-left:6px;vertical-align:middle}
 .nav-links{display:flex;align-items:center;gap:8px}
 .nav-links a{color:var(--text2);font-size:13px;padding:6px 12px;border-radius:7px;transition:all .15s}
 .nav-links a:hover{background:var(--bg3);color:var(--text);text-decoration:none}
 .nav-links .btn-logout{border:1px solid var(--border2);color:var(--text3)}
+
+/* QUICK NAV (panel admin) */
+.admin-quicknav{display:flex;flex-wrap:wrap;gap:8px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);padding:10px;margin-bottom:20px;position:sticky;top:70px;z-index:20;backdrop-filter:blur(6px)}
+.qn-item{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--text2);background:var(--bg3);padding:7px 13px;border-radius:20px;border:1px solid transparent;transition:all .15s}
+.qn-item:hover{color:var(--text);border-color:var(--border2);text-decoration:none}
+.qn-item.qn-alert{color:var(--amber);border-color:rgba(245,197,24,.3);background:var(--amber-bg)}
+.qn-item.qn-danger{color:var(--red);margin-left:auto}
+.qn-count{background:var(--usm-red);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;line-height:1.5}
 
 /* CONTENEDOR */
 .wrap{max-width:1100px;margin:0 auto;padding:28px 16px}
@@ -62,22 +78,50 @@ input:focus,select:focus{border-color:var(--blue)}
 input::placeholder{color:var(--text3)}
 
 /* BOTONES */
-.btn{display:inline-block;padding:8px 18px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--text2);transition:all .15s}
+.btn{display:inline-block;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--text2);transition:all .15s}
 .btn:hover{background:var(--bg3);color:var(--text)}
 .btn-primary{background:var(--blue);border-color:var(--blue);color:#fff}
 .btn-primary:hover{opacity:.85}
 .btn-danger{border-color:var(--red);color:var(--red)}
 .btn-danger:hover{background:var(--red-bg)}
-.btn-success{border-color:var(--green);color:var(--green)}
-.btn-success:hover{background:var(--green-bg)}
+.btn-success{background:var(--odd);border-color:var(--odd);color:#04140c}
+.btn-success:hover{background:var(--odd-hover);opacity:1}
 .btn-sm{padding:5px 12px;font-size:12px}
 .btn-full{width:100%;text-align:center}
+
+/* ODD BUTTONS — estilo casa de apuestas (1xbet/Betano): la cuota ES el botón */
+.odd-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:9px 6px;
+  cursor:pointer;transition:all .12s;-webkit-tap-highlight-color:transparent;width:100%;text-align:center}
+.odd-btn:hover{border-color:var(--odd);background:var(--bg4)}
+.odd-btn:active{transform:scale(.97)}
+.odd-btn.selected{background:var(--odd);border-color:var(--odd)}
+.odd-btn.selected .odd-key,.odd-btn.selected .odd-val{color:#04140c}
+.odd-btn.blocked{opacity:.4;pointer-events:none;border-color:var(--red)}
+.odd-btn .odd-key{font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.03em}
+.odd-btn .odd-val{font-size:17px;font-weight:800;color:var(--odd-l)}
+.odd-btn.selected .odd-val{color:#04140c}
+
+/* BETSLIP flotante estilo boleto de apuesta real */
+.betslip{position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--bg2);border-top:1px solid var(--border2);
+  box-shadow:0 -8px 24px rgba(0,0,0,.4);padding:12px 16px;transform:translateY(110%);transition:transform .25s ease}
+.betslip.open{transform:translateY(0)}
+.betslip-inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.betslip-sel{flex:1;min-width:180px}
+.betslip-sel .bs-match{font-size:11px;color:var(--text3)}
+.betslip-sel .bs-pick{font-size:14px;font-weight:700;color:var(--text)}
+.betslip-sel .bs-pick .odd{color:var(--odd-l)}
+.betslip-amount{width:130px}
+.betslip-amount input{width:100%;padding:9px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:14px}
+.betslip .bs-potential{font-size:12px;color:var(--text2);min-width:120px}
+.betslip .bs-close{background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;padding:0 6px}
 
 /* BADGES */
 .badge{display:inline-block;font-size:11px;padding:3px 9px;border-radius:20px;font-weight:500}
 .badge-open{background:var(--green-bg);color:var(--green)}
 .badge-closed{background:var(--amber-bg);color:var(--amber)}
 .badge-finished{background:var(--bg3);color:var(--text3)}
+.badge-draft{background:var(--blue-bg);color:var(--blue-l)}
 .badge-pending{background:var(--amber-bg);color:var(--amber)}
 .badge-approved{background:var(--green-bg);color:var(--green)}
 .badge-rejected{background:var(--red-bg);color:var(--red)}
@@ -130,8 +174,8 @@ tr:last-child td{border-bottom:none}
     {% if session.role == 'admin' %}
       <a href="{{ url_for('admin_panel') }}">Panel Admin</a>
     {% else %}
-      <a href="{{ url_for('dashboard') }}" style="background:linear-gradient(135deg,#003da5,#1a5bbf);color:#fff;font-weight:600;padding:5px 12px;border-radius:7px;font-size:13px">⚽ Eventos</a>
-      <a href="{{ url_for('casino.casino_lobby') }}" style="background:linear-gradient(135deg,#c9a84c,#a07730);color:#111;font-weight:600;padding:5px 12px;border-radius:7px;font-size:13px">🎰 Casino</a>
+      <a href="{{ url_for('dashboard') }}" style="background:linear-gradient(135deg,var(--odd),#0f8a5a);color:#04140c;font-weight:700;padding:5px 12px;border-radius:7px;font-size:13px">⚽ Apuestas</a>
+      <a href="{{ url_for('casino.casino_lobby') }}" style="background:linear-gradient(135deg,#c9a84c,#a07730);color:#111;font-weight:700;padding:5px 12px;border-radius:7px;font-size:13px">🎰 Casino</a>
       <a href="{{ url_for('profile') }}">Mi Perfil</a>
     {% endif %}
     <span style="color:var(--text3);font-size:12px;padding:0 4px">{{ session.username }}</span>

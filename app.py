@@ -8,11 +8,20 @@ eventlet.monkey_patch()
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from flask_socketio import SocketIO, emit
 from functools import wraps
+from werkzeug.security import generate_password_hash, check_password_hash
 import psycopg2, psycopg2.extras, secrets, hashlib, os
 from datetime import datetime
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "apusm-secret-cambia-esto-2024")
+
+SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY:
+    if os.environ.get("DATABASE_URL"):
+        # En producción (Render) esto es un error de configuración real: no arrancar con clave débil.
+        raise RuntimeError("Falta la variable de entorno SECRET_KEY. Configúrala en Render antes de desplegar.")
+    SECRET_KEY = secrets.token_hex(32)  # solo para desarrollo local sin .env
+app.secret_key = SECRET_KEY
+
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
@@ -23,7 +32,15 @@ FIELD_CUT = 0.07
 MIN_ODD   = 1.01
 
 def now(): return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-def hp(pw): return hashlib.sha256(pw.encode()).hexdigest()
+def hp(pw): return generate_password_hash(pw)  # salted hash (werkzeug/scrypt)
+def _legacy_sha256(pw): return hashlib.sha256(pw.encode()).hexdigest()
+def verify_password(stored_hash, pw):
+    """Verifica contra hash nuevo (salted). Si el usuario aún tiene un hash
+    sha256 viejo (sin salt), lo valida por compatibilidad y ADEMÁS lo re-hashea
+    en el caller para migrarlo silenciosamente."""
+    if stored_hash and stored_hash.startswith(("scrypt:", "pbkdf2:")):
+        return check_password_hash(stored_hash, pw)
+    return stored_hash == _legacy_sha256(pw)
 def round50(x):
     return int(x // 50) * 50
 
@@ -257,10 +274,15 @@ def login():
         p = request.form["password"]
         conn = get_db()
         try:
-            user = fetchone(conn, "SELECT * FROM users WHERE username=? AND password_hash=?", (u, hp(p)))
+            user = fetchone(conn, "SELECT * FROM users WHERE username=?", (u,))
+            valid = user and verify_password(user["password_hash"], p)
+            if valid and not user["password_hash"].startswith(("scrypt:", "pbkdf2:")):
+                # Migración silenciosa de hash legado (sha256 sin salt) a hash con salt
+                execute(conn, "UPDATE users SET password_hash=? WHERE id=?", (hp(p), user["id"]))
+                conn.commit()
         finally:
             conn.close()
-        if user:
+        if valid:
             session.update(user_id=user["id"], username=user["username"], role=user["role"])
             return redirect(url_for("admin_panel") if user["role"] == "admin" else url_for("dashboard"))
         flash("Usuario o contraseña incorrectos.", "error")
@@ -379,7 +401,7 @@ def request_entry(eid):
 def request_bet(eid):
     option_key = request.form.get("option_key", "")
     try: amount = float(request.form.get("amount", 0))
-    except: flash("Monto invalido.", "error"); return redirect(url_for("dashboard"))
+    except (ValueError, TypeError): flash("Monto invalido.", "error"); return redirect(url_for("dashboard"))
     if amount <= 0: flash("Monto debe ser > 0.", "error"); return redirect(url_for("dashboard"))
     conn = get_db()
     try:
@@ -595,7 +617,7 @@ def create_event():
         pct_raw = float(f.get("field_cut_pct", FIELD_CUT * 100))
         field_cut_pct = round(pct_raw / 100.0, 4) if pct_raw > 1 else pct_raw
         field_cut_pct = max(0.0, min(0.50, field_cut_pct))
-    except:
+    except (ValueError, TypeError):
         field_cut_pct = FIELD_CUT
     if has_draw:
         odd_home = float(f.get("odd_home", 2.20))
@@ -743,7 +765,7 @@ def add_field_players_bulk(eid):
     team_key = request.form.get("team_key", "")
     if team_key not in ("home","away"): flash("Equipo invalido.", "error"); return redirect(url_for("admin_panel"))
     try: count = int(request.form.get("count", 0))
-    except: flash("Cantidad invalida.", "error"); return redirect(url_for("admin_panel"))
+    except (ValueError, TypeError): flash("Cantidad invalida.", "error"); return redirect(url_for("admin_panel"))
     if count < 1 or count > 30: flash("Entre 1 y 30 jugadores.", "error"); return redirect(url_for("admin_panel"))
     conn = get_db()
     try:
@@ -753,7 +775,7 @@ def add_field_players_bulk(eid):
         for i in range(1, count + 1):
             name = request.form.get(f"name_{i}", "").strip()
             try: fee = float(request.form.get(f"fee_{i}", 0))
-            except: fee = 0.0
+            except (ValueError, TypeError): fee = 0.0
             if not name: continue
             execute(conn, "INSERT INTO field_players (event_id,name,team_key,entry_paid,payout,created_at) VALUES (?,?,?,?,0,?)",
                 (eid, name, team_key, fee, now()))
@@ -1154,7 +1176,7 @@ def view_player(uid):
 @admin_required
 def adjust_balance(uid):
     try: amount = float(request.form["amount"])
-    except: flash("Monto invalido.", "error"); return redirect(url_for("view_player", uid=uid))
+    except (ValueError, TypeError, KeyError): flash("Monto invalido.", "error"); return redirect(url_for("view_player", uid=uid))
     note = request.form.get("note", "").strip()
     conn = get_db()
     try:
@@ -1213,7 +1235,7 @@ def remove_entry(uid, eid):
 @admin_required
 def adjust_house_budget(eid):
     try: amount = float(request.form["amount"])
-    except: flash("Monto invalido.", "error"); return redirect(url_for("admin_panel"))
+    except (ValueError, TypeError, KeyError): flash("Monto invalido.", "error"); return redirect(url_for("admin_panel"))
     note = request.form.get("note", "Ajuste manual").strip()
     conn = get_db()
     try:
@@ -1233,7 +1255,7 @@ def adjust_house_budget(eid):
 @admin_required
 def update_entry_fee(eid):
     try: fee = float(request.form["entry_fee"])
-    except: flash("Monto invalido.", "error"); return redirect(url_for("admin_panel"))
+    except (ValueError, TypeError, KeyError): flash("Monto invalido.", "error"); return redirect(url_for("admin_panel"))
     if fee < 0: flash("Cuota negativa no permitida.", "error"); return redirect(url_for("admin_panel"))
     conn = get_db()
     try:
@@ -1274,7 +1296,7 @@ def update_score(eid):
     try:
         sh = int(request.form.get("score_home", 0))
         sa = int(request.form.get("score_away", 0))
-    except:
+    except (ValueError, TypeError):
         flash("Marcador inválido.", "error"); return redirect(url_for("admin_panel"))
     label = request.form.get("score_label", "Marcador").strip() or "Marcador"
     conn = get_db()
@@ -1326,7 +1348,7 @@ def toggle_casino():
         try:
             cur.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
             conn.commit()
-        except: cur.execute("ROLLBACK TO SAVEPOINT cs_setting")
+        except psycopg2.Error: cur.execute("ROLLBACK TO SAVEPOINT cs_setting")
         current = fetchone(conn, "SELECT value FROM settings WHERE key='casino_enabled'")
         new_val = '0' if current and current['value']=='1' else '1'
         execute(conn, "INSERT INTO settings (key,value) VALUES ('casino_enabled',%s) ON CONFLICT (key) DO UPDATE SET value=%s",
@@ -1344,7 +1366,8 @@ def _casino_enabled():
         row  = fetchone(conn, "SELECT value FROM settings WHERE key='casino_enabled'")
         conn.close()
         return row and row['value']=='1'
-    except: return False
+    except (psycopg2.Error, KeyError, TypeError):
+        return False
 
 # ── INIT ───────────────────────────────────────────────────────────────────────
 
@@ -1358,4 +1381,5 @@ with app.app_context():
     register_casino(app, socketio)
 
 if __name__ == "__main__":
-    socketio.run(app, debug=True, port=5000)
+    debug_mode = os.environ.get("FLASK_DEBUG", "0") == "1"
+    socketio.run(app, debug=debug_mode, port=int(os.environ.get("PORT", 5000)))

@@ -68,53 +68,39 @@
     <div style="font-size:12px;color:var(--green);margin-bottom:12px">✓ Entrada confirmada</div>
   {% endif %}
 
-  <!-- Odds -->
+  <!-- Odds: botones clicables estilo casa de apuestas real -->
   <div class="odds-grid {{ 'g3' if odds|length==3 else 'g2' }}">
     {% for o in odds %}
-    <div class="odd-card {{ 'blocked' if o['odd'] <= 1.01 else '' }}">
-      <div class="odd-key">{{ o['label'] }}</div>
       {% if o['odd'] <= 1.01 %}
-        <div class="odd-val blocked">🔒 CERRADO</div>
+      <div class="odd-btn blocked">
+        <div class="odd-key">{{ o['label'] }}</div>
+        <div class="odd-val" style="font-size:12px;color:var(--red)">🔒 CERRADO</div>
+      </div>
       {% else %}
+      <button type="button" class="odd-btn"
+        {% if ed.has_entry and ed.bets_open %}
+        onclick="selectOdd('{{ ev['id'] }}','{{ ev['home']|e }} vs {{ ev['away']|e }}','{{ o['option_key'] }}','{{ o['label']|e }}',{{ o['odd'] }})"
+        {% else %}disabled style="opacity:.5;cursor:not-allowed"{% endif %}>
+        <div class="odd-key">{{ o['label'] }}</div>
         <div class="odd-val">{{ "%.2f"|format(o['odd']) }}x</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:2px">${{ "%.0f"|format(o['total_bet']) }} apostados</div>
+      </button>
       {% endif %}
-    </div>
     {% endfor %}
   </div>
+  {% for o in odds %}{% if o['odd'] > 1.01 %}
+  <div style="font-size:10px;color:var(--text3);margin-top:4px;display:inline-block;margin-right:10px">{{ o['label'] }}: ${{ "%.0f"|format(o['total_bet']) }} apostados</div>
+  {% endif %}{% endfor %}
 
-  <!-- Formulario de solicitud de apuesta -->
-  {% if ed.has_entry and ed.bets_open %}
-  <div style="margin-top:14px;background:var(--bg3);border-radius:var(--r);padding:14px">
-    <div style="font-size:12px;color:var(--text2);margin-bottom:6px;font-weight:500">Solicitar apuesta</div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:10px">
-      Puedes enviar múltiples solicitudes. Cada una queda pendiente hasta que el admin la confirme.
-    </div>
-    <form method="POST" action="{{ url_for('request_bet', eid=ev['id']) }}">
-      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end">
-        <div>
-          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Opción</label>
-          <select name="option_key" required>
-            {% for o in odds %}
-              {% if o['odd'] > 1.01 %}
-              <option value="{{ o['option_key'] }}">{{ o['label'] }} ({{ "%.2f"|format(o['odd']) }}x)</option>
-              {% endif %}
-            {% endfor %}
-          </select>
-        </div>
-        <div>
-          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Monto ($)</label>
-          <input type="number" name="amount" min="1" step="1" required placeholder="Ej: 5000">
-        </div>
-        <button type="submit" class="btn btn-primary">Solicitar</button>
-      </div>
-    </form>
-  </div>
-  {% elif ed.has_entry and not ed.bets_open %}
+  {% if ed.has_entry and not ed.bets_open %}
   <div style="margin-top:12px;font-size:12px;color:var(--amber)">
     ⚠️ Las apuestas están cerradas por el momento.
   </div>
   {% endif %}
+  <!-- Form real que envía la solicitud (lo llena el boleto flotante) -->
+  <form id="betform-{{ ev['id'] }}" method="POST" action="{{ url_for('request_bet', eid=ev['id']) }}" style="display:none">
+    <input type="hidden" name="option_key" id="opt-{{ ev['id'] }}">
+    <input type="hidden" name="amount" id="amt-{{ ev['id'] }}">
+  </form>
 
   <!-- Mis solicitudes de apuesta para este evento -->
   {% if ed.my_bet_reqs %}
@@ -168,4 +154,61 @@
   </table>
 </div>
 {% endif %}
+
+<!-- Boleto de apuesta flotante (betslip) -->
+<div class="betslip" id="betslip">
+  <div class="betslip-inner">
+    <div class="betslip-sel">
+      <div class="bs-match" id="bs-match"></div>
+      <div class="bs-pick" id="bs-pick"></div>
+    </div>
+    <div class="betslip-amount">
+      <input type="number" id="bs-amount" min="1" step="1" placeholder="Monto $" oninput="updatePotential()">
+    </div>
+    <div class="bs-potential" id="bs-potential">Ganancia potencial: —</div>
+    <button type="button" class="btn btn-success" onclick="submitBetslip()">Confirmar apuesta</button>
+    <button type="button" class="bs-close" onclick="closeBetslip()">✕</button>
+  </div>
+</div>
+
+<script>
+let bsState = null; // {eid, matchLabel, optionKey, optionLabel, odd}
+
+function selectOdd(eid, matchLabel, optionKey, optionLabel, odd) {
+  // Deseleccionar cualquier otro botón activo en la misma tarjeta de evento
+  document.querySelectorAll('.odd-btn.selected').forEach(function(b){ b.classList.remove('selected'); });
+  if (event && event.currentTarget) event.currentTarget.classList.add('selected');
+
+  bsState = {eid: eid, matchLabel: matchLabel, optionKey: optionKey, optionLabel: optionLabel, odd: parseFloat(odd)};
+  document.getElementById('bs-match').textContent = matchLabel;
+  document.getElementById('bs-pick').innerHTML = optionLabel + ' <span class="odd">@ ' + odd.toFixed(2) + 'x</span>';
+  document.getElementById('betslip').classList.add('open');
+  updatePotential();
+  document.getElementById('bs-amount').focus();
+}
+
+function updatePotential() {
+  if (!bsState) return;
+  const amt = parseFloat(document.getElementById('bs-amount').value) || 0;
+  const pot = amt * bsState.odd;
+  document.getElementById('bs-potential').textContent = amt > 0
+    ? 'Ganancia potencial: $' + pot.toLocaleString('es-CL', {maximumFractionDigits:0})
+    : 'Ganancia potencial: —';
+}
+
+function closeBetslip() {
+  document.getElementById('betslip').classList.remove('open');
+  document.querySelectorAll('.odd-btn.selected').forEach(function(b){ b.classList.remove('selected'); });
+  bsState = null;
+}
+
+function submitBetslip() {
+  if (!bsState) return;
+  const amt = document.getElementById('bs-amount').value;
+  if (!amt || parseFloat(amt) <= 0) { alert('Ingresa un monto válido.'); return; }
+  document.getElementById('opt-' + bsState.eid).value = bsState.optionKey;
+  document.getElementById('amt-' + bsState.eid).value = amt;
+  document.getElementById('betform-' + bsState.eid).submit();
+}
+</script>
 {% endblock %}
