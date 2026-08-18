@@ -644,7 +644,10 @@ def create_event():
     initial_budget = float(f.get("initial_budget", 0))
     odds_mode      = f.get("odds_mode", "manual")
     sport_lower    = sport.strip().lower()
-    has_draw       = sport_lower in ("futbol", "fútbol", "football", "soccer")
+    # El admin decide con el checkbox "¿Tiene empate?" del formulario — antes esto se
+    # ignoraba y solo se detectaba automáticamente si el deporte era "futbol" (bug real:
+    # un evento de voleibol/tenis con empate marcado manualmente nunca creaba esa opción).
+    has_draw       = f.get("has_draw") == "1"
     try:
         pct_raw = float(f.get("field_cut_pct", FIELD_CUT * 100))
         field_cut_pct = round(pct_raw / 100.0, 4) if pct_raw > 1 else pct_raw
@@ -671,7 +674,7 @@ def create_event():
         if initial_budget > 0:
             execute(conn, "INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
                 (eid, initial_budget, "income", "Presupuesto inicial de la casa", now()))
-        options = [("home","Local",odd_home),("draw","Empate",odd_draw),("away","Visitante",odd_away)] if sport_lower in ("futbol","fútbol","football","soccer") \
+        options = [("home","Local",odd_home),("draw","Empate",odd_draw),("away","Visitante",odd_away)] if has_draw \
               else [("home","Local",odd_home),("away","Visitante",odd_away)]
         for key, label, odd in options:
             execute(conn, "INSERT INTO event_odds (event_id,option_key,label,odd,total_bet) VALUES (?,?,?,?,0)",

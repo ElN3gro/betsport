@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 
 <!-- ── CASINO TOGGLE ────────────────────────────────────────── -->
-<div class="card" style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;margin-bottom:4px;border-color:{% if casino_enabled %}rgba(34,197,94,.3){% else %}rgba(255,255,255,.07){% endif %}">
+<div class="card" style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;margin-bottom:4px;border-color:{% if casino_enabled %}rgba(245,166,35,.3){% else %}rgba(255,255,255,.07){% endif %}">
   <div style="display:flex;align-items:center;gap:12px">
     <span style="font-size:24px">🎰</span>
     <div>
@@ -102,118 +102,82 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- ── SOLICITUDES DE APUESTA PENDIENTES ──────────────────────── -->
 {% if pending_bets %}
-<div class="section-title" id="sec-bets">🎲 Solicitudes de apuesta — requieren tu aprobación</div>
-<div class="card" style="border-color:rgba(59,130,246,.3);padding:0;overflow:hidden">
-  <table>
-    <thead><tr><th>Jugador</th><th>Teléfono</th><th>Partido</th><th>Opción</th><th>Monto</th><th>Cuota al solicitar</th><th>Disponible</th><th>Fecha</th><th>Acciones</th></tr></thead>
-    <tbody>
-      {% for br in pending_bets %}
-      <tr>
-        <td>
-          <a href="{{ url_for('view_player', uid=br['user_id']) }}" style="font-weight:500">{{ br['full_name'] }}</a>
-          <div style="font-size:11px;color:var(--text3)">@{{ br['username'] }}</div>
-        </td>
-        <td style="font-size:13px">{{ br['phone'] }}</td>
-        <td style="font-size:12px">{{ br['home'] }} vs {{ br['away'] }}</td>
-        <td><span class="badge badge-open">{{ br['option_label'] }}</span></td>
-        <td style="font-weight:600;color:var(--blue-l)">${{ "%.0f"|format(br['amount']) }}</td>
-        <td>
-          <span style="font-weight:600;color:var(--amber)">{{ "%.2f"|format(br['odd_at_request']) }}x</span>
-          {% if br['current_odd'] != br['odd_at_request'] %}
-          <div style="font-size:10px;color:var(--text3)">actual: {{ "%.2f"|format(br['current_odd']) }}x</div>
-          {% endif %}
-        </td>
-        <td>
-          {% if not br['saldo_ok'] %}
-            <span style="color:var(--red);font-size:12px">✗ sin saldo</span>
-          {% elif br['aprobable'] %}
-            <span style="color:var(--green);font-size:12px">✓ la casa cubre</span>
-          {% else %}
-            <span style="color:var(--red);font-size:12px">✗ déficit ${{ "%.0f"|format(br['deficit']) }}</span>
-          {% endif %}
-        </td>
-        <td style="font-size:11px;color:var(--text3)">{{ br['created_at'][:16] }}</td>
-        <td>
-          <form method="POST" action="{{ url_for('approve_bet_request', brid=br['id']) }}" style="display:inline">
-            <button class="btn btn-sm btn-success" {% if not br['aprobable'] %}style="opacity:.5" title="La casa no cubre esta apuesta"{% endif %}>✓ Aprobar</button>
-          </form>
-          <form method="POST" action="{{ url_for('reject_bet_request', brid=br['id']) }}" style="display:inline;margin-left:4px">
-            <button class="btn btn-sm btn-danger">✗ Rechazar</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<div class="section-title" id="sec-bets">🎲 Solicitudes de apuesta ({{ pending_bets|length }})</div>
+{% for br in pending_bets %}
+<div class="card" style="padding:14px 16px">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px">
+    <div>
+      <a href="{{ url_for('view_player', uid=br['user_id']) }}" style="font-weight:600;font-size:14px">{{ br['full_name'] }}</a>
+      <div style="font-size:11px;color:var(--text3)">@{{ br['username'] }} · {{ br['phone'] }}</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:18px;font-weight:800;color:var(--odd-l)">${{ "%.0f"|format(br['amount']) }}</div>
+      <div style="font-size:11px;color:var(--text3)">{{ br['created_at'][:16] }}</div>
+    </div>
+  </div>
+  <div style="font-size:12.5px;color:var(--text2);margin-bottom:8px">{{ br['home'] }} vs {{ br['away'] }} — <span class="badge badge-open">{{ br['option_label'] }}</span> @ <b style="color:var(--amber)">{{ "%.2f"|format(br['odd_at_request']) }}x</b>
+    {% if br['current_odd'] != br['odd_at_request'] %}<span style="color:var(--text3)">(actual: {{ "%.2f"|format(br['current_odd']) }}x)</span>{% endif %}
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+    <span style="font-size:12px">
+      {% if not br['saldo_ok'] %}<span style="color:var(--red)">✗ sin saldo</span>
+      {% elif br['aprobable'] %}<span style="color:var(--odd-l)">✓ la casa cubre</span>
+      {% else %}<span style="color:var(--red)">✗ déficit ${{ "%.0f"|format(br['deficit']) }}</span>{% endif %}
+    </span>
+    <div style="display:flex;gap:6px">
+      <form method="POST" action="{{ url_for('approve_bet_request', brid=br['id']) }}" style="margin:0">
+        <button class="btn btn-success" {% if not br['aprobable'] %}style="opacity:.5" title="La casa no cubre esta apuesta"{% endif %}>✓ Aprobar</button>
+      </form>
+      <form method="POST" action="{{ url_for('reject_bet_request', brid=br['id']) }}" style="margin:0">
+        <button class="btn btn-danger">✗</button>
+      </form>
+    </div>
+  </div>
 </div>
+{% endfor %}
 {% endif %}
 
 <!-- ── APUESTAS RECHAZADAS AUTOMÁTICAMENTE ─────────────────────── -->
 {% if rejected_auto_bets %}
-<div class="section-title" id="sec-rejected">⚠️ Apuestas rechazadas por límite de cobertura</div>
-<div class="card" style="border-color:rgba(239,68,68,.25);padding:0;overflow:hidden">
-  <div style="padding:10px 16px;background:rgba(239,68,68,.08);font-size:12px;color:var(--text2)">
-    Estas apuestas fueron rechazadas automáticamente porque excedían la capacidad de pago de la casa al presionar "Aprobar todas". Puedes reactivarlas como pendientes si agregas más presupuesto.
+<div class="section-title" id="sec-rejected">⚠️ Rechazadas por límite de cobertura ({{ rejected_auto_bets|length }})</div>
+<div style="font-size:12px;color:var(--text2);margin:-8px 0 10px">Excedían la capacidad de pago al aprobar todas de una vez. Reactivalas si agregás más presupuesto.</div>
+{% for br in rejected_auto_bets %}
+<div class="card" style="padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px">
+  <div>
+    <div style="font-weight:600;font-size:13px">{{ br['full_name'] }} <span style="color:var(--text3);font-weight:400">@{{ br['username'] }}</span></div>
+    <div style="font-size:12px;color:var(--text2)">{{ br['home'] }} vs {{ br['away'] }} — {{ br['option_label'] }} @ {{ "%.2f"|format(br['odd_at_request']) }}x — <b style="color:var(--blue-l)">${{ "%.0f"|format(br['amount']) }}</b></div>
   </div>
-  <table>
-    <thead><tr><th>Jugador</th><th>Partido</th><th>Opción</th><th>Monto</th><th>Cuota</th><th>Fecha</th><th>Acciones</th></tr></thead>
-    <tbody>
-      {% for br in rejected_auto_bets %}
-      <tr>
-        <td>
-          <span style="font-weight:500">{{ br['full_name'] }}</span>
-          <div style="font-size:11px;color:var(--text3)">@{{ br['username'] }}</div>
-        </td>
-        <td style="font-size:12px">{{ br['home'] }} vs {{ br['away'] }}</td>
-        <td><span class="badge badge-open">{{ br['option_label'] }}</span></td>
-        <td style="font-weight:600;color:var(--blue-l)">${{ "%.0f"|format(br['amount']) }}</td>
-        <td style="color:var(--amber)">{{ "%.2f"|format(br['odd_at_request']) }}x</td>
-        <td style="font-size:11px;color:var(--text3)">{{ br['created_at'][:16] }}</td>
-        <td>
-          <form method="POST" action="{{ url_for('reactivate_bet_request', brid=br['id']) }}" style="display:inline">
-            <button class="btn btn-sm btn-primary">↩ Reactivar</button>
-          </form>
-          <form method="POST" action="{{ url_for('reject_bet_request', brid=br['id']) }}" style="display:inline;margin-left:4px">
-            <button class="btn btn-sm btn-danger">✗ Descartar</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div style="display:flex;gap:6px;flex-shrink:0">
+    <form method="POST" action="{{ url_for('reactivate_bet_request', brid=br['id']) }}" style="margin:0">
+      <button class="btn btn-sm btn-primary">↩ Reactivar</button>
+    </form>
+    <form method="POST" action="{{ url_for('reject_bet_request', brid=br['id']) }}" style="margin:0">
+      <button class="btn btn-sm btn-danger">✗</button>
+    </form>
+  </div>
 </div>
+{% endfor %}
 {% endif %}
 
 <!-- ── PAGOS DE ENTRADA PENDIENTES ────────────────────────────── -->
 {% if pending_entries %}
-<div class="section-title" id="sec-entries">⚠️ Cuotas de entrada pendientes (apostadores web)</div>
-<div class="card" style="border-color:rgba(245,158,11,.3);padding:0;overflow:hidden">
-  <table>
-    <thead><tr><th>Jugador</th><th>Teléfono</th><th>Concepto</th><th>Cuota</th><th>Fecha</th><th>Acciones</th></tr></thead>
-    <tbody>
-      {% for r in pending_entries %}
-      <tr>
-        <td>
-          <a href="{{ url_for('view_player', uid=r['user_id']) }}" style="font-weight:500">{{ r['full_name'] }}</a>
-          <div style="font-size:11px;color:var(--text3)">@{{ r['username'] }}</div>
-        </td>
-        <td style="font-size:13px">{{ r['phone'] }}</td>
-        <td style="font-size:12px">{{ r['note'] }}</td>
-        <td style="font-weight:600;color:var(--amber)">${{ "%.0f"|format(r['amount']) }}</td>
-        <td style="font-size:11px;color:var(--text3)">{{ r['created_at'][:16] }}</td>
-        <td>
-          <form method="POST" action="{{ url_for('approve_cash', rid=r['id']) }}" style="display:inline">
-            <button class="btn btn-sm btn-success">✓ Aprobar</button>
-          </form>
-          <form method="POST" action="{{ url_for('reject_cash', rid=r['id']) }}" style="display:inline;margin-left:4px">
-            <button class="btn btn-sm btn-danger">✗ Rechazar</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<div class="section-title" id="sec-entries">💵 Cuotas de entrada pendientes ({{ pending_entries|length }})</div>
+{% for r in pending_entries %}
+<div class="card" style="padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px">
+  <div>
+    <a href="{{ url_for('view_player', uid=r['user_id']) }}" style="font-weight:600;font-size:13px">{{ r['full_name'] }}</a>
+    <div style="font-size:12px;color:var(--text2)">{{ r['note'] }} — <b style="color:var(--amber)">${{ "%.0f"|format(r['amount']) }}</b> · {{ r['phone'] }}</div>
+  </div>
+  <div style="display:flex;gap:6px;flex-shrink:0">
+    <form method="POST" action="{{ url_for('approve_cash', rid=r['id']) }}" style="margin:0">
+      <button class="btn btn-sm btn-success">✓ Aprobar</button>
+    </form>
+    <form method="POST" action="{{ url_for('reject_cash', rid=r['id']) }}" style="margin:0">
+      <button class="btn btn-sm btn-danger">✗</button>
+    </form>
+  </div>
 </div>
+{% endfor %}
 {% endif %}
 
 <!-- ── TOKENS ──────────────────────────────────────────────────── -->
@@ -258,24 +222,26 @@ document.addEventListener('DOMContentLoaded', function() {
 <!-- ── CREAR EVENTO ────────────────────────────────────────────── -->
 <div class="section-title" id="sec-events">Eventos</div>
 <div class="card">
-  <div class="card-title">Crear evento</div>
+  <div class="card-title">Crear evento nuevo</div>
   <form method="POST" action="{{ url_for('create_event') }}">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div class="form-group">
-        <label>Deporte</label>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input type="text" name="sport" id="sport-input" required placeholder="Fútbol, Basketball, Ping Pong…" oninput="onSportInput(this.value)" style="flex:1">
-          <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);cursor:pointer;white-space:nowrap;margin:0">
-            <input type="checkbox" id="has-draw" onchange="toggleDraw(this.checked)" style="width:auto;margin:0"> ¿Tiene empate?
-          </label>
-        </div>
+
+    <!-- Paso 1: deporte por botones, no texto libre -->
+    <div class="form-group">
+      <label>Deporte</label>
+      <div class="sport-picker" id="sport-picker">
+        <button type="button" class="sport-chip" data-sport="Fútbol" data-draw="1">⚽ Fútbol</button>
+        <button type="button" class="sport-chip" data-sport="Basketball" data-draw="0">🏀 Básquet</button>
+        <button type="button" class="sport-chip" data-sport="Voleibol" data-draw="0">🏐 Vóley</button>
+        <button type="button" class="sport-chip" data-sport="Tenis" data-draw="0">🎾 Tenis</button>
+        <button type="button" class="sport-chip" data-sport="Ping Pong" data-draw="0">🏓 Ping Pong</button>
+        <button type="button" class="sport-chip" data-sport="Béisbol" data-draw="0">⚾ Béisbol</button>
+        <button type="button" class="sport-chip" id="sport-other-btn">✏️ Otro</button>
       </div>
-      <div class="form-group">
-        <label>Liga / Torneo</label>
-        <input type="text" name="league" required placeholder="La Liga, NBA…">
-      </div>
+      <input type="text" name="sport" id="sport-input" required placeholder="Escribe el deporte…" style="display:none;margin-top:8px">
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+
+    <!-- Paso 2: lo esencial, siempre visible -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div class="form-group">
         <label>Equipo local</label>
         <input type="text" name="home" required placeholder="Real Madrid">
@@ -284,36 +250,20 @@ document.addEventListener('DOMContentLoaded', function() {
         <label>Equipo visitante</label>
         <input type="text" name="away" required placeholder="Barcelona">
       </div>
-      <div class="form-group">
-        <label>% para jugadores de cancha ganadores</label>
-        <input type="number" name="field_cut_pct" min="0" max="50" step="0.1" placeholder="7" value="7">
-        <div style="font-size:10px;color:var(--text3);margin-top:3px">% del pool de apuestas perdedoras</div>
-      </div>
-      <div class="form-group">
-        <label>Modo de multiplicadores</label>
-        <select name="odds_mode">
-          <option value="manual">Manual (fijos, ajuste suave al aprobar)</option>
-          <option value="auto">Automático (se equilibran solos según apuestas)</option>
-        </select>
-        <div style="font-size:10px;color:var(--text3);margin-top:3px">Auto garantiza que la casa nunca pierda</div>
-      </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:4px">
-      <div class="form-group">
-        <label>Cuota de entrada ($) <span style="color:var(--text3);font-weight:400">— lo que paga el apostador para poder apostar</span></label>
-        <input type="number" name="entry_fee" min="0" step="1" placeholder="0 = gratis" value="0">
-        <div style="font-size:10px;color:var(--text3);margin-top:3px">Este monto se acredita al presupuesto de la casa al aprobar el pago</div>
-      </div>
-      <div class="form-group">
-        <label>Presupuesto inicial de la casa ($) <span style="color:var(--text3);font-weight:400">— colchón para las primeras apuestas</span></label>
-        <input type="number" name="initial_budget" min="0" step="1" placeholder="0" value="0">
-        <div style="font-size:10px;color:var(--text3);margin-top:3px">Se puede ajustar después. Permite aceptar apuestas antes de que haya pool contrario</div>
-      </div>
+    <div class="form-group">
+      <label>Liga / Torneo</label>
+      <input type="text" name="league" required placeholder="La Liga, NBA, Copa Interna…">
     </div>
+
+    <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text2);cursor:pointer;margin-bottom:14px">
+      <input type="checkbox" name="has_draw" value="1" id="has-draw" style="width:auto;margin:0"> Este deporte permite empate
+    </label>
+
+    <!-- Paso 3: cuotas — lo que la gente ve al apostar -->
     <div style="background:var(--bg3);border-radius:var(--r);padding:14px;margin-bottom:14px">
       <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:10px">
-        📊 Multiplicadores iniciales
-        <span style="font-weight:400;color:var(--text3)"> — se ajustan automáticamente al recibir apuestas</span>
+        📊 Cuotas iniciales <span style="font-weight:400;color:var(--text3)">— se ajustan solas al recibir apuestas</span>
       </div>
       <div id="odds-container" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="form-group" style="margin:0">
@@ -325,7 +275,6 @@ document.addEventListener('DOMContentLoaded', function() {
           <input type="number" name="odd_away" step="0.01" min="1.02" value="2.00">
         </div>
       </div>
-      <!-- El campo draw se inyecta/remueve dinámicamente -->
       <div id="draw-slot" style="margin-top:10px;display:none">
         <div class="form-group" style="margin:0">
           <label>Empate (x)</label>
@@ -333,28 +282,88 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
       </div>
     </div>
-    <button type="submit" class="btn btn-primary">Crear evento</button>
+
+    <!-- Opciones avanzadas: ocultas por defecto, valores por defecto razonables -->
+    <details style="margin-bottom:16px">
+      <summary style="cursor:pointer;font-size:12.5px;color:var(--text2);font-weight:600;padding:4px 0">⚙️ Opciones avanzadas (opcional)</summary>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+        <div class="form-group">
+          <label>Cuota de entrada ($)</label>
+          <input type="number" name="entry_fee" min="0" step="1" placeholder="0 = gratis" value="0">
+          <div style="font-size:10px;color:var(--text3);margin-top:3px">Lo que paga el jugador para poder apostar</div>
+        </div>
+        <div class="form-group">
+          <label>Presupuesto inicial de la casa ($)</label>
+          <input type="number" name="initial_budget" min="0" step="1" placeholder="0" value="0">
+        </div>
+        <div class="form-group">
+          <label>% para jugadores de cancha ganadores</label>
+          <input type="number" name="field_cut_pct" min="0" max="50" step="0.1" placeholder="7" value="7">
+        </div>
+        <div class="form-group">
+          <label>Modo de multiplicadores</label>
+          <select name="odds_mode">
+            <option value="manual">Manual (fijos, ajuste suave)</option>
+            <option value="auto">Automático (se auto-equilibran)</option>
+          </select>
+        </div>
+      </div>
+    </details>
+
+    <button type="submit" class="btn btn-primary btn-full">Crear evento</button>
   </form>
 </div>
 
+<style>
+.sport-picker{display:flex;flex-wrap:wrap;gap:8px}
+.sport-chip{background:var(--bg3);border:1px solid var(--border2);color:var(--text2);font-size:13px;font-weight:600;padding:8px 14px;border-radius:20px;cursor:pointer;transition:all .15s}
+.sport-chip:hover{border-color:var(--odd)}
+.sport-chip.active{background:var(--odd);border-color:var(--odd);color:#04140c}
+</style>
 <script>
-// Deportes que tienen empate por defecto al escribir su nombre
-const DRAW_SPORTS = ["futbol","fútbol","football","soccer"];
+(function(){
+  const picker = document.getElementById('sport-picker');
+  const sportInput = document.getElementById('sport-input');
+  const otherBtn = document.getElementById('sport-other-btn');
+  const drawCb = document.getElementById('has-draw');
 
-function onSportInput(val) {
-  var hasDraw = DRAW_SPORTS.includes(val.trim().toLowerCase());
-  var cb = document.getElementById('has-draw');
-  cb.checked = hasDraw;
-  toggleDraw(hasDraw);
-}
+  function selectChip(btn) {
+    picker.querySelectorAll('.sport-chip').forEach(function(c){ c.classList.remove('active'); });
+    btn.classList.add('active');
+  }
 
-function toggleDraw(show) {
-  var slot = document.getElementById('draw-slot');
-  var inp  = document.getElementById('odd-draw-input');
-  slot.style.display = show ? 'block' : 'none';
-  inp.disabled = !show;
-  if (!inp.disabled && inp.value === '') inp.value = '3.20';
-}
+  picker.querySelectorAll('.sport-chip[data-sport]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      selectChip(btn);
+      sportInput.style.display = 'none';
+      sportInput.value = btn.dataset.sport;
+      sportInput.required = false;
+      var hasDraw = btn.dataset.draw === '1';
+      drawCb.checked = hasDraw;
+      toggleDraw(hasDraw);
+    });
+  });
+
+  otherBtn.addEventListener('click', function(){
+    selectChip(otherBtn);
+    sportInput.style.display = 'block';
+    sportInput.value = '';
+    sportInput.required = true;
+    sportInput.focus();
+    drawCb.checked = false;
+    toggleDraw(false);
+  });
+
+  drawCb.addEventListener('change', function(){ toggleDraw(this.checked); });
+
+  function toggleDraw(show) {
+    var slot = document.getElementById('draw-slot');
+    var inp  = document.getElementById('odd-draw-input');
+    slot.style.display = show ? 'block' : 'none';
+    inp.disabled = !show;
+    if (!inp.disabled && inp.value === '') inp.value = '3.20';
+  }
+})();
 </script>
 
 <!-- ── LISTA DE EVENTOS ────────────────────────────────────────── -->

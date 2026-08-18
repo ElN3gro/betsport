@@ -7,19 +7,19 @@
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  /* Fondo tipo sportsbook: azul-negro profundo, no negro puro */
-  --bg:#0b0e14;--bg2:#111621;--bg3:#1a2133;--bg4:#232c44;
+  /* Fondo oscuro, tono carbón/verde muy oscuro (referencia Bet365) en vez de azul-negro */
+  --bg:#0c0f0d;--bg2:#121613;--bg3:#1c211d;--bg4:#272e27;
   --border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.16);
-  --text:#eef1f7;--text2:#9aa4bd;--text3:#5f6b87;
+  --text:#f2f1ea;--text2:#a3a89e;--text3:#686f64;
 
   /* Identidad USM conservada como acento de marca */
   --usm-red:#c8102e;--usm-red-l:#ff4d68;--usm-red-bg:rgba(200,16,46,0.14);
   --usm-yellow:#f5c518;--usm-yellow-bg:rgba(245,197,24,0.12);
   --usm-blue:#003da5;--usm-blue-l:#4d7fd4;--usm-blue-bg:rgba(0,61,165,0.18);
 
-  /* Verde "cuota" estilo 1xbet/Betano: es EL color de acción de toda casa de apuestas */
-  --odd:#16b978;--odd-l:#2fe39a;--odd-bg:rgba(22,185,120,0.14);
-  --odd-hover:#13a267;
+  /* Naranja/dorado como color de acción (estilo Bet365): cuotas, saldo, botones principales */
+  --odd:#f5a623;--odd-l:#ffc857;--odd-bg:rgba(245,166,35,0.14);
+  --odd-hover:#d98e12;
 
   /* Mapeo a variables genéricas usadas en el resto del código */
   --blue:var(--usm-blue);--blue-l:var(--usm-blue-l);--blue-bg:var(--usm-blue-bg);
@@ -29,7 +29,7 @@
   --r:10px;--rl:14px;
 }
 body{background:var(--bg);color:var(--text);font-family:'Inter','Segoe UI',system-ui,sans-serif;min-height:100vh;
-  background-image:radial-gradient(circle at 15% 0%, rgba(0,61,165,0.10), transparent 45%),radial-gradient(circle at 85% 0%, rgba(22,185,120,0.07), transparent 40%);
+  background-image:radial-gradient(circle at 15% 0%, rgba(0,61,165,0.08), transparent 45%),radial-gradient(circle at 85% 0%, rgba(245,166,35,0.08), transparent 40%);
   background-attachment:fixed;
 }
 a{color:var(--blue-l);text-decoration:none}
@@ -61,7 +61,7 @@ nav{background:linear-gradient(180deg,var(--bg2),var(--bg));border-bottom:1px so
 /* FLASHES */
 .flash-list{list-style:none;margin-bottom:20px}
 .flash-list li{padding:10px 16px;border-radius:var(--r);font-size:13px;margin-bottom:8px;border:1px solid}
-.flash-list .success{background:var(--green-bg);border-color:rgba(34,197,94,.3);color:#4ade80}
+.flash-list .success{background:var(--green-bg);border-color:rgba(245,166,35,.3);color:var(--odd-l)}
 .flash-list .error{background:var(--red-bg);border-color:rgba(239,68,68,.3);color:#f87171}
 .flash-list .info{background:var(--blue-bg);border-color:rgba(59,130,246,.3);color:var(--blue-l)}
 
@@ -161,6 +161,44 @@ tr:last-child td{border-bottom:none}
 /* MODAL-like inline form */
 .inline-form{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
 .inline-form input{flex:1;min-width:120px}
+
+/* ── RESPONSIVE: celular ── */
+@media(max-width:640px){
+  nav{padding:0 10px;height:52px}
+  .logo{font-size:16px}
+  .logo .sub{display:none}
+  .nav-links{gap:3px}
+  .nav-links a{padding:5px 8px;font-size:12px}
+  body{padding-bottom:90px} /* espacio para el betslip flotante */
+
+  .card{padding:14px 15px}
+
+  /* Cualquier grid de 2 o 3 columnas hecho con inline style (formularios de admin)
+     se apila en una sola columna — antes se achicaba tanto que los inputs quedaban
+     ilegibles en el teléfono. */
+  div[style*="grid-template-columns:1fr 1fr 1fr"],
+  div[style*="grid-template-columns:1fr 1fr"]{
+    grid-template-columns:1fr !important;
+  }
+
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
+  .admin-quicknav{position:static;top:auto} /* el sticky doble (nav+quicknav) come mucha pantalla en celular */
+
+  .odds-grid.g3{grid-template-columns:repeat(3,1fr);gap:6px}
+  .odd-btn{padding:8px 4px}
+  .odd-btn .odd-val{font-size:15px}
+
+  /* Boleto de apuesta: apilado, monto ocupa todo el ancho */
+  .betslip-inner{flex-direction:column;align-items:stretch;gap:8px}
+  .betslip-amount{width:100%}
+  .betslip .bs-potential{text-align:center}
+
+  /* Tablas que aún quedan (usuarios, tokens): scroll horizontal en vez de romper el layout */
+  table{display:block;overflow-x:auto;white-space:nowrap}
+
+  .sport-picker{gap:6px}
+  .sport-chip{padding:7px 11px;font-size:12px}
+}
 </style>
 {% block head %}{% endblock %}
 </head>
@@ -174,7 +212,7 @@ tr:last-child td{border-bottom:none}
     {% if session.role == 'admin' %}
       <a href="{{ url_for('admin_panel') }}">Panel Admin</a>
     {% else %}
-      <a href="{{ url_for('dashboard') }}" style="background:linear-gradient(135deg,var(--odd),#0f8a5a);color:#04140c;font-weight:700;padding:5px 12px;border-radius:7px;font-size:13px">⚽ Apuestas</a>
+      <a href="{{ url_for('dashboard') }}" style="background:linear-gradient(135deg,var(--odd),#c47a10);color:#1a1206;font-weight:700;padding:5px 12px;border-radius:7px;font-size:13px">⚽ Apuestas</a>
       <a href="{{ url_for('casino.casino_lobby') }}" style="background:linear-gradient(135deg,#c9a84c,#a07730);color:#111;font-weight:700;padding:5px 12px;border-radius:7px;font-size:13px">🎰 Casino</a>
       <a href="{{ url_for('profile') }}">Mi Perfil</a>
     {% endif %}
