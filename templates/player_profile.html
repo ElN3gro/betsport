@@ -140,8 +140,12 @@
         <td>${{ "%.0f"|format(b['amount']) }}</td>
         <td>{{ "%.2f"|format(b['odd_at_bet']) }}x</td>
         <td>${{ "%.0f"|format(b['potential']) }}</td>
-        <td><span class="badge badge-{{ b['result'] }}">{{ b['result'] }}</span></td>
-        <td>{% if b['result']=='won' %}<span style="color:var(--green);font-weight:600">${{ "%.0f"|format(b['payout']) }}</span>{% else %}—{% endif %}</td>
+        <td><span class="badge badge-{{ b['result'] }}">{{ 'reembolsada' if b['result']=='void' else b['result'] }}</span></td>
+        <td>
+          {% if b['result']=='won' %}<span style="color:var(--green);font-weight:600">${{ "%.0f"|format(b['payout']) }}</span>
+          {% elif b['result']=='void' %}<span style="color:var(--text2);font-weight:600">${{ "%.0f"|format(b['payout']) }} <span style="font-size:10px;color:var(--text3)">(devuelto)</span></span>
+          {% else %}—{% endif %}
+        </td>
       </tr>
       {% endfor %}
     </tbody>

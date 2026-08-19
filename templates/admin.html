@@ -412,37 +412,55 @@ document.addEventListener('DOMContentLoaded', function() {
   <!-- Marcador en tiempo real -->
   {% if ev['status'] != 'finished' %}
   <div style="background:var(--bg3);border-radius:var(--r);padding:12px 14px;margin-bottom:14px">
-    <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">
-      🏟️ {{ ev.get('score_label','Marcador') }}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">
+        🏟️ {{ ev.get('score_label','Marcador') }}
+      </div>
+      <button type="button" class="btn btn-sm" onclick="location.reload()" title="Actualizar página">🔄 Actualizar</button>
     </div>
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
       <div style="text-align:center;flex:1">
         <div style="font-size:11px;color:var(--text3);margin-bottom:3px">{{ ev['home'] }}</div>
         <div style="font-size:32px;font-weight:700;color:var(--text)">{{ ev.get('score_home', 0) }}</div>
+        <div style="display:flex;gap:6px;justify-content:center;margin-top:8px">
+          <form method="POST" action="{{ url_for('score_goal', eid=ev['id']) }}" style="margin:0" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='...'">
+            <input type="hidden" name="team" value="home">
+            <button type="submit" class="btn btn-sm btn-success" style="padding:6px 14px;font-size:15px;font-weight:800">+1</button>
+          </form>
+          <form method="POST" action="{{ url_for('score_undo', eid=ev['id']) }}" style="margin:0">
+            <input type="hidden" name="team" value="home">
+            <button type="submit" class="btn btn-sm" title="Corregir" style="padding:6px 10px">−1</button>
+          </form>
+        </div>
       </div>
       <div style="font-size:18px;color:var(--text3);font-weight:300">—</div>
       <div style="text-align:center;flex:1">
         <div style="font-size:11px;color:var(--text3);margin-bottom:3px">{{ ev['away'] }}</div>
         <div style="font-size:32px;font-weight:700;color:var(--text)">{{ ev.get('score_away', 0) }}</div>
+        <div style="display:flex;gap:6px;justify-content:center;margin-top:8px">
+          <form method="POST" action="{{ url_for('score_goal', eid=ev['id']) }}" style="margin:0" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='...'">
+            <input type="hidden" name="team" value="away">
+            <button type="submit" class="btn btn-sm btn-success" style="padding:6px 14px;font-size:15px;font-weight:800">+1</button>
+          </form>
+          <form method="POST" action="{{ url_for('score_undo', eid=ev['id']) }}" style="margin:0">
+            <input type="hidden" name="team" value="away">
+            <button type="submit" class="btn btn-sm" title="Corregir" style="padding:6px 10px">−1</button>
+          </form>
+        </div>
       </div>
     </div>
-    <form method="POST" action="{{ url_for('update_score', eid=ev['id']) }}">
-      <div style="display:grid;grid-template-columns:auto 1fr 1fr auto;gap:6px;align-items:end">
-        <div class="form-group" style="margin:0">
-          <label style="font-size:10px">Unidad</label>
-          <input type="text" name="score_label" value="{{ ev.get('score_label','Marcador') }}" placeholder="Goles, Pts…" style="width:90px;font-size:12px;padding:5px 8px">
-        </div>
-        <div class="form-group" style="margin:0">
-          <label style="font-size:10px">{{ ev['home'] }}</label>
-          <input type="number" name="score_home" value="{{ ev.get('score_home',0) }}" min="0" style="font-size:14px;font-weight:600;text-align:center">
-        </div>
-        <div class="form-group" style="margin:0">
-          <label style="font-size:10px">{{ ev['away'] }}</label>
-          <input type="number" name="score_away" value="{{ ev.get('score_away',0) }}" min="0" style="font-size:14px;font-weight:600;text-align:center">
-        </div>
-        <button type="submit" class="btn btn-sm btn-primary" style="margin-bottom:0">Actualizar</button>
-      </div>
-    </form>
+    <div style="font-size:10px;color:var(--text3);text-align:center">
+      El botón <b>+1</b> liquida al instante las apuestas de "Próximo en anotar" y ajusta las cuotas automáticamente. Usa <b>−1</b> solo para corregir un error de carga.
+    </div>
+    <details style="margin-top:8px">
+      <summary style="cursor:pointer;font-size:11px;color:var(--text3)">✏️ Editar unidad del marcador (Goles, Puntos, Sets…)</summary>
+      <form method="POST" action="{{ url_for('update_score', eid=ev['id']) }}" style="margin-top:8px;display:flex;gap:6px;align-items:end">
+        <input type="hidden" name="score_home" value="{{ ev.get('score_home',0) }}">
+        <input type="hidden" name="score_away" value="{{ ev.get('score_away',0) }}">
+        <input type="text" name="score_label" value="{{ ev.get('score_label','Marcador') }}" placeholder="Goles, Pts…" style="flex:1;font-size:12px;padding:5px 8px">
+        <button type="submit" class="btn btn-sm btn-primary">Guardar</button>
+      </form>
+    </details>
   </div>
   {% else %}
   <div style="font-size:13px;color:var(--text2);margin-bottom:12px">
@@ -450,9 +468,10 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
   {% endif %}
 
-  <!-- Odds actuales -->
-  <div class="odds-grid {{ 'g3' if ed.odds|length==3 else 'g2' }}" style="margin-bottom:12px">
-    {% for o in ed.odds %}
+  <!-- Odds actuales: separadas por mercado para que quede claro que son independientes -->
+  <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">🏆 Ganador del partido</div>
+  <div class="odds-grid {{ 'g3' if (ed.odds|selectattr('option_key','in',['home','draw','away'])|list)|length==3 else 'g2' }}" style="margin-bottom:12px">
+    {% for o in ed.odds if o['option_key'] in ('home','draw','away') %}
     <div class="odd-card {{ 'blocked' if o['odd'] <= 1.01 else '' }}" style="cursor:default">
       <div class="odd-key">{{ o['label'] }}</div>
       <div class="odd-val {{ 'blocked' if o['odd'] <= 1.01 else '' }}">
@@ -462,6 +481,19 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
     {% endfor %}
   </div>
+
+  {% if ev['status'] != 'finished' %}
+  <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">⚡ Próximo en anotar</div>
+  <div class="odds-grid g2" style="margin-bottom:12px">
+    {% for o in ed.odds if o['option_key'] in ('next_home','next_away') %}
+    <div class="odd-card" style="cursor:default;border-color:var(--odd)">
+      <div class="odd-key">{{ o['label'] }}</div>
+      <div class="odd-val">{{ "%.2f"|format(o['odd']) }}x</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:3px">${{ "%.0f"|format(o['total_bet']) }} apostados</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
 
   <!-- Info financiera del evento -->
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px">
@@ -474,6 +506,7 @@ document.addEventListener('DOMContentLoaded', function() {
       <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Presupuesto casa</div>
       <div style="font-size:18px;font-weight:600;color:var(--green)">${{ "%.0f"|format(ev['house_budget']) }}</div>
       <div style="font-size:10px;color:var(--text3)">acumulado (entradas + manual)</div>
+      <div style="font-size:9px;color:var(--amber);margin-top:3px">⚠️ Compartido entre "ganador" y "próx. en anotar"</div>
     </div>
     <div style="background:var(--bg3);border-radius:var(--r);padding:10px 14px">
       <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Pool total apuestas</div>

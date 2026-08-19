@@ -59,8 +59,9 @@
   {% endif %}
 
   <!-- Odds: botones clicables estilo casa de apuestas real -->
-  <div class="odds-grid {{ 'g3' if odds|length==3 else 'g2' }}">
-    {% for o in odds %}
+  <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">🏆 Ganador del partido</div>
+  <div class="odds-grid {{ 'g3' if (odds|selectattr('option_key','in',['home','draw','away'])|list)|length==3 else 'g2' }}">
+    {% for o in odds if o['option_key'] in ('home','draw','away') %}
       {% if o['odd'] <= 1.01 %}
       <div class="odd-btn blocked">
         <div class="odd-key">{{ o['label'] }}</div>
@@ -77,6 +78,29 @@
       {% endif %}
     {% endfor %}
   </div>
+
+  {% set next_odds = odds|selectattr('option_key','in',['next_home','next_away'])|list %}
+  {% if next_odds and ed.bets_open %}
+  <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:12px 0 6px">⚡ Próximo en anotar</div>
+  <div class="odds-grid g2">
+    {% for o in next_odds %}
+      {% if o['odd'] <= 1.01 %}
+      <div class="odd-btn blocked">
+        <div class="odd-key">{{ o['label'] }}</div>
+        <div class="odd-val" style="font-size:12px;color:var(--red)">🔒</div>
+      </div>
+      {% else %}
+      <button type="button" class="odd-btn"
+        {% if ed.has_entry %}
+        onclick="selectOdd('{{ ev['id'] }}','{{ ev['home']|e }} vs {{ ev['away']|e }}','{{ o['option_key'] }}','{{ o['label']|e }}',{{ o['odd'] }})"
+        {% else %}disabled style="opacity:.5;cursor:not-allowed"{% endif %}>
+        <div class="odd-key">{{ o['label'] }}</div>
+        <div class="odd-val">{{ "%.2f"|format(o['odd']) }}x</div>
+      </button>
+      {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
 
   {% if ed.has_entry and not ed.bets_open %}
   <div style="margin-top:10px;font-size:12px;color:var(--amber)">⚠️ Apuestas cerradas por ahora.</div>
@@ -117,8 +141,8 @@
     <div style="font-size:11px;color:var(--text2);margin-top:2px">Apostado: ${{ "%.0f"|format(b['amount']) }} · Potencial: ${{ "%.0f"|format(b['potential']) }}</div>
   </div>
   <div style="text-align:right">
-    <span class="badge badge-{{ b['result'] }}">{{ b['result'] }}</span>
-    {% if b['result']=='won' %}<div style="color:var(--odd-l);font-weight:700;font-size:14px;margin-top:4px">${{ "%.0f"|format(b['payout']) }}</div>{% endif %}
+    <span class="badge badge-{{ b['result'] }}">{{ 'reembolsada' if b['result']=='void' else b['result'] }}</span>
+    {% if b['result'] in ('won','void') %}<div style="color:var(--odd-l);font-weight:700;font-size:14px;margin-top:4px">${{ "%.0f"|format(b['payout']) }}</div>{% endif %}
   </div>
 </div>
 {% endfor %}

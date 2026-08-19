@@ -230,6 +230,17 @@ def init_db():
                 cur.execute("RELEASE SAVEPOINT migration")
             except Exception:
                 cur.execute("ROLLBACK TO SAVEPOINT migration")  # columna ya existe
+
+        # Migración: agregar mercado "próximo en anotar" a eventos creados antes de esta función
+        cur.execute("""
+            SELECT e.id FROM events e
+            WHERE NOT EXISTS (SELECT 1 FROM event_odds o WHERE o.event_id = e.id AND o.option_key = 'next_home')
+        """)
+        for row in cur.fetchall():
+            eid_old = row[0]
+            cur.execute("INSERT INTO event_odds (event_id,option_key,label,odd,total_bet) VALUES (%s,'next_home','⚡ Local anota siguiente',1.85,0)", (eid_old,))
+            cur.execute("INSERT INTO event_odds (event_id,option_key,label,odd,total_bet) VALUES (%s,'next_away','⚡ Visitante anota siguiente',1.85,0)", (eid_old,))
+
         # Admin por defecto
         cur.execute("SELECT id FROM users WHERE role='admin'")
         if not cur.fetchone():
@@ -259,22 +270,26 @@ def admin_required(f):
 def recalc_auto_odds(conn, eid):
     """Recalcula odds en modo auto para que la casa siempre pueda pagar.
     El multiplicador de cada opción se calcula con el pool perdedor + house_budget
-    como respaldo, descontando los cortes."""
+    como respaldo, descontando los cortes. Se hace POR MERCADO por separado
+    (ganador del partido vs. próximo en anotar) para no mezclar pools de dinero
+    que no tienen relación entre sí."""
     ev   = fetchone(conn, "SELECT * FROM events WHERE id=?", (eid,))
-    odds = fetchall(conn, "SELECT * FROM event_odds WHERE event_id=? ORDER BY CASE option_key WHEN 'home' THEN 1 WHEN 'draw' THEN 2 WHEN 'away' THEN 3 END", (eid,))
-    total_pool = sum(o["total_bet"] for o in odds)
+    all_odds = fetchall(conn, "SELECT * FROM event_odds WHERE event_id=? ORDER BY CASE option_key WHEN 'home' THEN 1 WHEN 'draw' THEN 2 WHEN 'away' THEN 3 END", (eid,))
     cuts       = HOUSE_CUT + ev["field_cut_pct"]
     house      = ev["house_budget"]
-    for o in odds:
-        if o["total_bet"] > 0 and total_pool > 0:
-            losing   = total_pool - o["total_bet"]
-            respaldo = losing * (1 - cuts) + house
-            # Odd máximo que la casa puede pagar sin déficit
-            safe_odd = round(1 + respaldo / o["total_bet"], 2)
-            new_odd  = max(MIN_ODD, min(safe_odd, 99.0))
-        else:
-            new_odd = o["odd"]
-        execute(conn, "UPDATE event_odds SET odd=? WHERE id=?", (new_odd, o["id"]))
+    for mkt in ("winner", "next"):
+        odds = [o for o in all_odds if market_of(o["option_key"]) == mkt]
+        total_pool = sum(o["total_bet"] for o in odds)
+        for o in odds:
+            if o["total_bet"] > 0 and total_pool > 0:
+                losing   = total_pool - o["total_bet"]
+                respaldo = losing * (1 - cuts) + house
+                # Odd máximo que la casa puede pagar sin déficit
+                safe_odd = round(1 + respaldo / o["total_bet"], 2)
+                new_odd  = max(MIN_ODD, min(safe_odd, 99.0))
+            else:
+                new_odd = o["odd"]
+            execute(conn, "UPDATE event_odds SET odd=? WHERE id=?", (new_odd, o["id"]))
 
 # ── TIEMPO REAL ───────────────────────────────────────────────────────────────
 
@@ -283,6 +298,106 @@ def emit_update(event_type, data=None):
     socketio.emit("update", {"type": event_type, "data": data or {}})
 
 app.jinja_env.filters["sport_emoji"] = sport_emoji
+
+def market_of(option_key):
+    """Distingue a qué mercado de apuestas pertenece una option_key.
+    'winner' = quién gana el partido (home/draw/away)
+    'next'   = quién anota el próximo punto/gol (next_home/next_away)
+    Los pools de dinero de cada mercado deben calcularse por separado: mezclar
+    ganancias/pools de mercados distintos daría un cálculo de riesgo incorrecto
+    para la casa (aprobaría o rechazaría apuestas con el número equivocado)."""
+    return "next" if str(option_key).startswith("next_") else "winner"
+
+def recalc_winner_odds_on_score(conn, eid, score_home, score_away):
+    """Cuotas del mercado 'ganador del partido': el equipo que va perdiendo
+    sube su cuota (paga más si remonta), el que va ganando la baja.
+    Es una cuota informativa/comercial (no se usa para cálculo de riesgo real,
+    ese sigue siendo el respaldo casa+pool), pero afecta lo que ve el jugador."""
+    diff = score_home - score_away
+    base = 1.95
+    if diff == 0:
+        home_odd, away_odd = base, base
+    elif diff > 0:
+        home_odd = max(1.05, round(base - diff * 0.22, 2))
+        away_odd = round(base + diff * 0.35, 2)
+    else:
+        d = -diff
+        away_odd = max(1.05, round(base - d * 0.22, 2))
+        home_odd = round(base + d * 0.35, 2)
+    execute(conn, "UPDATE event_odds SET odd=? WHERE event_id=? AND option_key='home'", (home_odd, eid))
+    execute(conn, "UPDATE event_odds SET odd=? WHERE event_id=? AND option_key='away'", (away_odd, eid))
+    if fetchone(conn, "SELECT id FROM event_odds WHERE event_id=? AND option_key='draw'", (eid,)):
+        draw_odd = round(base + abs(diff) * 0.55 + 1.1, 2)
+        execute(conn, "UPDATE event_odds SET odd=? WHERE event_id=? AND option_key='draw'", (draw_odd, eid))
+
+def recalc_next_score_odds(conn, eid, score_home, score_away):
+    """Cuotas del mercado 'próximo en anotar': independientes de las del ganador
+    del partido (usan otra base y otro factor de ajuste, a propósito, para que
+    nunca queden iguales). También favorece levemente al que va perdiendo."""
+    diff = score_home - score_away
+    base = 1.85
+    if diff == 0:
+        h, a = base, base
+    elif diff > 0:
+        h = max(1.20, round(base - diff * 0.08, 2))
+        a = round(base + diff * 0.14, 2)
+    else:
+        d = -diff
+        a = max(1.20, round(base - d * 0.08, 2))
+        h = round(base + d * 0.14, 2)
+    execute(conn, "UPDATE event_odds SET odd=? WHERE event_id=? AND option_key='next_home'", (h, eid))
+    execute(conn, "UPDATE event_odds SET odd=? WHERE event_id=? AND option_key='next_away'", (a, eid))
+
+def settle_next_score_market(conn, eid, scoring_team):
+    """Cuando un equipo anota (+1 al marcador), el mercado 'próximo en anotar'
+    se cierra al instante: se pagan las apuestas confirmadas a favor del equipo
+    que anotó, se pierden las del otro, y se cancelan las solicitudes pendientes
+    que aún no habían sido aprobadas (el mercado ya no aplica, como en una casa real)."""
+    ev = fetchone(conn, "SELECT * FROM events WHERE id=?", (eid,))
+    winner_okey = f"next_{scoring_team}"
+    loser_okey  = "next_away" if scoring_team == "home" else "next_home"
+
+    winning_bets = fetchall(conn, "SELECT * FROM bets WHERE event_id=? AND option_key=? AND result='pending'", (eid, winner_okey))
+    losing_bets  = fetchall(conn, "SELECT * FROM bets WHERE event_id=? AND option_key=? AND result='pending'", (eid, loser_okey))
+
+    losing_pool = sum(b["amount"] for b in losing_bets)
+    field_bonus = round(losing_pool * ev["field_cut_pct"], 2)
+    pool_para_ganancias = round(losing_pool - field_bonus, 2)
+    total_ganancias = sum(round(b["potential"] - b["amount"], 2) for b in winning_bets)
+
+    def pagar(bets, total_disp, total_gan):
+        for b in bets:
+            ganancia = round(b["potential"] - b["amount"], 2)
+            ratio    = (ganancia / total_gan) if total_gan > 0 else 0
+            payout_bruto = round(b["amount"] + total_disp * ratio, 2) if total_gan > 0 else b["amount"]
+            payout = round50(payout_bruto)
+            execute(conn, "UPDATE bets SET result='won', payout=? WHERE id=?", (payout, b["id"]))
+            execute(conn, "UPDATE users SET balance=balance+? WHERE id=?", (payout, b["user_id"]))
+
+    if total_ganancias == 0:
+        pass  # nadie apostó al ganador de este mercado, no hay nada que pagar
+    elif pool_para_ganancias >= total_ganancias:
+        house_profit = round(pool_para_ganancias - total_ganancias, 2)
+        if house_profit > 0:
+            execute(conn, "INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
+                (eid, house_profit, "profit", "Próximo en anotar: pool perdedor", now()))
+        pagar(winning_bets, pool_para_ganancias, total_ganancias)
+    else:
+        deficit = round(total_ganancias - pool_para_ganancias, 2)
+        hb = ev["house_budget"]
+        cubierto = min(hb, deficit)
+        if cubierto > 0:
+            execute(conn, "UPDATE events SET house_budget=house_budget-? WHERE id=?", (cubierto, eid))
+            execute(conn, "INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
+                (eid, -cubierto, "expense", "Próximo en anotar: casa cubrió déficit", now()))
+        pagar(winning_bets, pool_para_ganancias + cubierto, total_ganancias)
+
+    for b in losing_bets:
+        execute(conn, "UPDATE bets SET result='lost' WHERE id=?", (b["id"],))
+
+    # Solicitudes pendientes de este mercado quedan obsoletas: el mercado ya cerró
+    execute(conn, "UPDATE bet_requests SET status='cancelled' WHERE event_id=? AND option_key IN ('next_home','next_away') AND status='pending'", (eid,))
+    execute(conn, "UPDATE event_odds SET total_bet=0 WHERE event_id=? AND option_key IN ('next_home','next_away')", (eid,))
 
 @app.route("/healthz")
 def healthz():
@@ -501,8 +616,11 @@ def admin_panel():
             current_odd = odd_row["odd"] if odd_row else 1.0
             locked_odd  = br["odd_at_request"] if br["odd_at_request"] > 1.0 else current_odd
             potential   = round(br["amount"] * locked_odd, 2)
-            # Calcular si esta apuesta individual es aprobable con el presupuesto actual
-            all_odds_r = fetchall(conn, "SELECT * FROM event_odds WHERE event_id=?", (br["event_id"],))
+            # Calcular si esta apuesta individual es aprobable con el presupuesto actual.
+            # IMPORTANTE: solo se compara contra opciones del MISMO mercado (ganador del
+            # partido vs. próximo en anotar) — son pools de dinero independientes.
+            all_odds_r = [o for o in fetchall(conn, "SELECT * FROM event_odds WHERE event_id=?", (br["event_id"],))
+                          if market_of(o["option_key"]) == market_of(br["option_key"])]
             g_por_op   = {o["option_key"]: fetchone(conn,
                 "SELECT COALESCE(SUM(potential-amount),0) as t FROM bets WHERE event_id=? AND option_key=? AND result='pending'",
                 (br["event_id"], o["option_key"]))["t"] for o in all_odds_r}
@@ -676,6 +794,9 @@ def create_event():
                 (eid, initial_budget, "income", "Presupuesto inicial de la casa", now()))
         options = [("home","Local",odd_home),("draw","Empate",odd_draw),("away","Visitante",odd_away)] if has_draw \
               else [("home","Local",odd_home),("away","Visitante",odd_away)]
+        # Mercado independiente "próximo en anotar" — cuotas propias, no derivadas
+        # de las del ganador del partido (piden explícitamente que sean distintas)
+        options += [("next_home","⚡ Local anota siguiente",1.85),("next_away","⚡ Visitante anota siguiente",1.85)]
         for key, label, odd in options:
             execute(conn, "INSERT INTO event_odds (event_id,option_key,label,odd,total_bet) VALUES (?,?,?,?,0)",
                 (eid, key, label, odd))
@@ -857,7 +978,9 @@ def _do_approve_bet(conn, brid):
 
     house_budget  = ev["house_budget"]
     field_cut_pct = ev["field_cut_pct"]
-    all_odds = {o["option_key"]: o for o in fetchall(conn, "SELECT * FROM event_odds WHERE event_id=? ORDER BY CASE option_key WHEN 'home' THEN 1 WHEN 'draw' THEN 2 WHEN 'away' THEN 3 END", (br["event_id"],))}
+    # Solo se compara contra opciones del MISMO mercado (pools de dinero independientes)
+    all_odds = {o["option_key"]: o for o in fetchall(conn, "SELECT * FROM event_odds WHERE event_id=? ORDER BY CASE option_key WHEN 'home' THEN 1 WHEN 'draw' THEN 2 WHEN 'away' THEN 3 END", (br["event_id"],))
+                if market_of(o["option_key"]) == market_of(br["option_key"])}
 
     ganancias_por_opcion = {}
     pool_por_opcion = {}
@@ -900,7 +1023,11 @@ def _do_approve_bet(conn, brid):
         factor  = amount / 1000.0
         new_odd = max(MIN_ODD, round(odd_row["odd"] - (odd_row["odd"] - 1.0) * factor * 0.18, 2))
         execute(conn, "UPDATE event_odds SET odd=? WHERE id=?", (new_odd, odd_row["id"]))
+        # Solo se nudgean las OTRAS opciones del MISMO mercado — una apuesta al
+        # ganador del partido no debe mover las cuotas de "próximo en anotar" y viceversa.
         for o in fetchall(conn, "SELECT * FROM event_odds WHERE event_id=? AND option_key!=?", (br["event_id"], br["option_key"])):
+            if market_of(o["option_key"]) != market_of(br["option_key"]):
+                continue
             execute(conn, "UPDATE event_odds SET odd=? WHERE id=?", (round(min(9.99, o["odd"] + o["odd"] * 0.06 * factor), 2), o["id"]))
 
     return True, f"Apuesta aprobada: ${amount:,.0f} a {locked_odd:.2f}x — potencial ${potential:,.0f}."
@@ -960,10 +1087,12 @@ def approve_all_bets(eid):
             sim_g_new = dict(sim_ganancias); sim_g_new[br["option_key"]] = sim_g_new.get(br["option_key"], 0) + ganancia
             sim_p_new = dict(sim_pool);     sim_p_new[br["option_key"]] = sim_p_new.get(br["option_key"], 0) + amount
 
-            # Calcular peor déficit posible si se aprueba
+            # Calcular peor déficit posible si se aprueba — solo dentro del MISMO
+            # mercado que esta solicitud (pools de dinero independientes entre
+            # "ganador del partido" y "próximo en anotar")
             peor_deficit = 0.0
-            for okey in {o["option_key"] for o in all_odds_rows}:
-                pool_perdedor = sum(v for k, v in sim_p_new.items() if k != okey)
+            for okey in {o["option_key"] for o in all_odds_rows if market_of(o["option_key"]) == market_of(br["option_key"])}:
+                pool_perdedor = sum(v for k, v in sim_p_new.items() if k != okey and market_of(k) == market_of(okey))
                 pool_neto     = round(pool_perdedor * (1 - field_cut), 2)
                 ganancias_ok  = sim_g_new.get(okey, 0)
                 deficit       = round(ganancias_ok - (pool_neto + sim_house), 2)
@@ -1083,7 +1212,11 @@ def finish_event(eid):
         if not ev: flash("Evento no valido.", "error"); return redirect(url_for("admin_panel"))
         execute(conn, "UPDATE events SET status='finished', winner_key=? WHERE id=?", (winner_key, eid))
 
-        all_bets     = fetchall(conn, "SELECT * FROM bets WHERE event_id=? AND result='pending'", (eid,))
+        # Solo se liquidan acá las apuestas del mercado "ganador del partido" (home/draw/away).
+        # Las de "próximo en anotar" son un pool de dinero aparte — mezclarlas acá
+        # les robaría plata a los cálculos de pago del mercado principal.
+        all_bets     = [b for b in fetchall(conn, "SELECT * FROM bets WHERE event_id=? AND result='pending'", (eid,))
+                        if market_of(b["option_key"]) == "winner"]
         winning_bets = [b for b in all_bets if b["option_key"] == winner_key]
         losing_bets  = [b for b in all_bets if b["option_key"] != winner_key]
         losing_pool  = sum(b["amount"] for b in losing_bets)
@@ -1166,6 +1299,14 @@ def finish_event(eid):
                 if extra > 0:
                     execute(conn, "INSERT INTO house_log (event_id,amount,type,note,created_at) VALUES (?,?,?,?,?)",
                         (eid, extra, "cancha", "Sin ganadores cancha: cuotas + corte van a casa", now()))
+
+        # Reembolsar apuestas confirmadas de "próximo en anotar" que quedaron sin resolver
+        # (el partido terminó antes del siguiente gol/punto — el mercado nunca cerró,
+        # así que se devuelve el dinero apostado, no se pierde ni se paga como ganado)
+        unresolved_next = fetchall(conn, "SELECT * FROM bets WHERE event_id=? AND result='pending' AND option_key IN ('next_home','next_away')", (eid,))
+        for b in unresolved_next:
+            execute(conn, "UPDATE bets SET result='void', payout=? WHERE id=?", (b["amount"], b["id"]))
+            execute(conn, "UPDATE users SET balance=balance+? WHERE id=?", (b["amount"], b["user_id"]))
 
         execute(conn, "UPDATE bet_requests SET status='cancelled' WHERE event_id=? AND status='pending'", (eid,))
         conn.commit()
@@ -1339,6 +1480,67 @@ def update_score(eid):
         ev = fetchone(conn, "SELECT * FROM events WHERE id=? AND status!='finished'", (eid,))
         if not ev: flash("Evento no válido.", "error"); return redirect(url_for("admin_panel"))
         execute(conn, "UPDATE events SET score_home=?, score_away=?, score_label=? WHERE id=?", (sh, sa, label, eid))
+        recalc_winner_odds_on_score(conn, eid, sh, sa)
+        recalc_next_score_odds(conn, eid, sh, sa)
+        conn.commit()
+    finally:
+        conn.close()
+    emit_update("score_updated")
+    return redirect(url_for("admin_panel"))
+
+# ── BOTÓN +1 DE MARCADOR (reemplaza escribir el número a mano) ────────────────
+@app.route("/admin/event/<int:eid>/score/goal", methods=["POST"])
+@login_required
+@admin_required
+def score_goal(eid):
+    team = request.form.get("team")
+    if team not in ("home", "away"):
+        flash("Equipo inválido.", "error"); return redirect(url_for("admin_panel"))
+    conn = get_db()
+    try:
+        # FOR UPDATE bloquea la fila del evento: si llegan dos clicks casi
+        # simultáneos (doble tap accidental), el segundo espera a que el primero
+        # termine de liquidar y confirmar — así nunca se paga una apuesta dos veces.
+        ev = fetchone(conn, "SELECT * FROM events WHERE id=? AND status!='finished' FOR UPDATE", (eid,))
+        if not ev: flash("Evento no válido.", "error"); return redirect(url_for("admin_panel"))
+        sh, sa = ev["score_home"], ev["score_away"]
+        if team == "home": sh += 1
+        else: sa += 1
+        execute(conn, "UPDATE events SET score_home=?, score_away=? WHERE id=?", (sh, sa, eid))
+
+        # 1) Liquidar el mercado "próximo en anotar" — se cierra al instante, como en la vida real
+        settle_next_score_market(conn, eid, team)
+        # 2) Ajustar cuotas del ganador del partido: el que va perdiendo sube
+        recalc_winner_odds_on_score(conn, eid, sh, sa)
+        # 3) Abrir cuotas frescas del próximo gol/punto, también favoreciendo al que va perdiendo
+        recalc_next_score_odds(conn, eid, sh, sa)
+
+        conn.commit()
+    finally:
+        conn.close()
+    emit_update("score_updated")
+    return redirect(url_for("admin_panel"))
+
+@app.route("/admin/event/<int:eid>/score/undo", methods=["POST"])
+@login_required
+@admin_required
+def score_undo(eid):
+    """Corrige un gol mal cargado. No revierte pagos ya liquidados del mercado
+    'próximo en anotar' (ya se pagó en tiempo real) — solo ajusta el marcador
+    y las cuotas del ganador del partido."""
+    team = request.form.get("team")
+    if team not in ("home", "away"):
+        flash("Equipo inválido.", "error"); return redirect(url_for("admin_panel"))
+    conn = get_db()
+    try:
+        ev = fetchone(conn, "SELECT * FROM events WHERE id=? AND status!='finished'", (eid,))
+        if not ev: flash("Evento no válido.", "error"); return redirect(url_for("admin_panel"))
+        sh, sa = ev["score_home"], ev["score_away"]
+        if team == "home": sh = max(0, sh - 1)
+        else: sa = max(0, sa - 1)
+        execute(conn, "UPDATE events SET score_home=?, score_away=? WHERE id=?", (sh, sa, eid))
+        recalc_winner_odds_on_score(conn, eid, sh, sa)
+        recalc_next_score_odds(conn, eid, sh, sa)
         conn.commit()
     finally:
         conn.close()
